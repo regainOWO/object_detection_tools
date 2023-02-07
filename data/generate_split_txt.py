@@ -41,7 +41,7 @@ def split_train_val(image_dir, trainval_percent=0.9, train_percent=0.9):
     fval = open(save_dir + '/val.txt', 'w')
 
     for i in index:
-        abs_path = Path(save_dir).joinpath(image_filenames[i]).as_posix() + '\n'    # 图片文件绝对路径
+        abs_path = Path(image_dir).joinpath(image_filenames[i]).as_posix() + '\n'    # 图片文件绝对路径
         if i in trainval:
             ftrainval.write(abs_path)
             if i in train:
