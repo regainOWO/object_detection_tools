@@ -3,7 +3,7 @@
 # E:/GithubProjects/datasets/XiAnSample/05-PointElement/水塔
 # E:/GithubProjects/datasets/XiAnSample/08-AirportElement/油库
 dataset_dir=$1
-image_dirname=$2
+image_dirname="JPEGImages"
 xml_dir="${dataset_dir}/Annotations"
 
 # 分类数据集

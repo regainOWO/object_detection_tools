@@ -194,7 +194,9 @@ class GapSplit:
             o_img[0:h, 0:w, :] = sub_img
         else:
             o_img = sub_img
-        cv2.imwrite(o_image_file, o_img)
+
+        # cv2.imwrite(o_image_file, o_img)
+        cv2.imencode(self.ext, o_img)[1].tofile(o_image_file)
 
     def get_fix_poly4_from_poly5(self, poly):
         """
@@ -269,10 +271,10 @@ class GapSplit:
                 content_line = ' '.join(["%.1f" % x for x in poly_in_sub])
                 # 根据阈值，设置标签识别的难易度
                 if ioa > self.thresh:
-                    content_line = content_line + ' ' + obj['name'] + ' ' + obj['difficult']
+                    content_line = content_line + ' ' + obj['name'] + ' ' + obj['difficult'] + '\n'
                 else:
                     ## if the left part is too small, label as '2'
-                    content_line = content_line + ' ' + obj['name'] + ' ' + '2'
+                    content_line = content_line + ' ' + obj['name'] + ' ' + '2' + '\n'
                 content_lines.append(content_line)
         with open(o_label_file, mode='w', encoding='utf-8') as f:
             f.writelines(content_lines)

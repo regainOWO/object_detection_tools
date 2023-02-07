@@ -16,6 +16,7 @@ angle: 范围为[0, 180)
 
 import argparse
 import glob
+import logging
 import os
 import os.path as osp
 from pathlib import Path
@@ -41,21 +42,26 @@ def le180yolo2dota(in_file, out_file, classes, img_wh):
     diffcult = 0
     with open(in_file, mode='r', encoding='utf-8') as f:
         labels = [str(x).strip().split(' ') for x in f.readlines()]
-    labels = np.array(labels, dtype=np.float64).reshape(-1, 6)
-    cls_ids = labels[:, [0]]
-    rboxs = labels[:, 1:].copy()
-    # 去归一化，变回原图上的尺度
-    rboxs[:, [0, 2]] *= img_wh[0]
-    rboxs[:, [1, 3]] *= img_wh[1]
-    # rboxs[:, -1] = (rboxs[:, -1] - 90) * np.pi / 180   # angle∈[-pi/2, pi/2)，转换一下空间
-    # polys = rbox2poly(rboxs)
-    polys = [np.float32(cv2.boxPoints(((x[0], x[1]), (x[2], x[3]), x[4]))).reshape(8,) for x in rboxs]
-    # polys = [longsideformat2poly(*x) for x in rboxs]
-
     content_lines = []
-    for cls_id, poly in zip(cls_ids, polys):
-        line_one = ' '.join(["%.1f" % a for a in poly]) + ' ' + classes[int(cls_id)] + ' ' + str(diffcult) + '\n'
-        content_lines.append(line_one)
+    if len(labels):
+        labels = np.array(labels, dtype=np.float64).reshape(-1, 6)
+        cls_ids = labels[:, [0]]
+        rboxs = labels[:, 1:].copy()
+        # 去归一化，变回原图上的尺度
+        rboxs[:, [0, 2]] *= img_wh[0]
+        rboxs[:, [1, 3]] *= img_wh[1]
+        # rboxs[:, -1] = (rboxs[:, -1] - 90) * np.pi / 180   # angle∈[-pi/2, pi/2)，转换一下空间
+        # polys = rbox2poly(rboxs)
+        polys = [np.float32(cv2.boxPoints(((x[0], x[1]), (x[2], x[3]), x[4]))).reshape(8,) for x in rboxs]
+        # polys = [longsideformat2poly(*x) for x in rboxs]
+
+        for cls_id, poly in zip(cls_ids, polys):
+            line_one = ' '.join(["%.1f" % a for a in poly]) + ' ' + classes[int(cls_id)] + ' ' + str(diffcult) + '\n'
+            content_lines.append(line_one)
+
+    if len(content_lines) == 0:
+        logging.warning(f'no lines to save, the file: {out_file} is empty')
+
     # 将内容写入文件
     with open(out_file, mode='w', encoding='utf-8') as f:
         f.writelines(content_lines)
@@ -76,10 +82,16 @@ def run(dataset_dir, image_dirname='images', label_dirname='labels_obb'):
     for i, label_file in tqdm(enumerate(label_files), total=len(label_files)):
         out_file = osp.join(save_dir, Path(label_file).name)
         # 在图片文件夹中寻找相同文件名称的图片文件
-        image_file = glob.glob(osp.join(image_dir, filenames[i].rsplit('.')[0]) + '.*')[0]
+        try:
+            image_file = glob.glob(osp.join(image_dir, filenames[i].rsplit('.')[0]) + '.*')[0]
+        except Exception as e:
+            assert 0, f"please make sure the folder: {image_dir} have correct image and imagename"
         assert image_file.rsplit('.')[-1] in IMG_FORMATS, f'find file: {image_file}, but is not an image format'
         img_wh = Image.open(image_file).size
         le180yolo2dota(label_file, out_file, classes, img_wh)
+    # print msg
+    print(f"convert dataset: {Path(dataset_dir).name} le180yolo obb label to dota Success!!!")
+    print(f"convert label is in folder labelTxt")
 
 
 if __name__ == '__main__':
@@ -87,5 +99,3 @@ if __name__ == '__main__':
     run(dataset_dir=opt.dataset_dir,
         image_dirname=opt.image_dirname,
         label_dirname=opt.label_dirname)
-    print(f"convert dataset: {Path(opt.dataset_dir).name} le180yolo obb label to dota Success!!!")
-    print(f"convert label is in folder labelTxt")

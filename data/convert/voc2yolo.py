@@ -156,14 +156,14 @@ def run(dataset_dir, isOBB=False):
             # 写入图片文件路径
             list_file.write(f'{images_dir}/{image_id}.{image_suffix}\n')
         list_file.close()
+    # print msg
     print(CLASS_NAMES)
-    return label_dirname
+    print(f"convert dataset: {Path(dataset_dir).name} voc label to yolo Success!!!")
+    print(f"in folder: {dataset_dir}. generate train.txt、val.txt and test.txt Success!!!")
+    print(f"convert label is in folder {label_dirname}")
 
 
 if __name__ == "__main__":
     opt = parse_opt()
-    out_label_dirname = run(dataset_dir=opt.dataset_dir,
-                            isOBB=opt.obb)
-    print(f"convert dataset: {Path(opt.dataset_dir).name} voc label to yolo Success!!!")
-    print(f"in folder: {opt.dataset_dir}. generate train.txt、val.txt and test.txt Success!!!")
-    print(f"convert label is in folder {out_label_dirname}")
+    run(dataset_dir=opt.dataset_dir,
+        isOBB=opt.obb)

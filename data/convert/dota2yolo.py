@@ -13,6 +13,7 @@ x1 y1 x2 y2 x3 y3 x4 y4 classname diffcult ========> cls_id cx cy w h
 
 import argparse
 import glob
+import logging
 import os
 import os.path as osp
 from pathlib import Path
@@ -73,29 +74,34 @@ def dota2yolo(in_file, out_file, classes, img_wh):
         polys.append(label[:-2])
         cls_ids.append(classes.index(class_name))
 
-    # 取包裹住object的水平框
-    """
-    rects = []
-    for poly in polys:
-        poly = np.float32(poly).reshape((4, 2))
-        # 这里生成的是左上角的坐标，不是中心点的坐标
-        rect = cv2.boundingRect(poly)  # (x, y, w, h)
-        x = rect[0] + 0.5 * rect[2]  # x + 0.5w
-        y = rect[1] + 0.5 * rect[3]  # y + 0.5h
-        rects.append([x, y, rect[2], rect[3]])
-    rects = np.array(rects, dtype=np.float32)
-    """
-    polys = np.array(polys, dtype=np.float32).reshape(-1, 8)
-    rects = poly2hbb(polys)
-    rects = xyxy2xywh(rects)
-    # 归一化
-    rects[:, [0, 2]] /= img_wh[0]
-    rects[:, [1, 3]] /= img_wh[1]
-
     content_lines = []
-    for cls_id, rect in zip(cls_ids, rects):
-        line_one = str(cls_id) + ' ' + ' '.join([str(a) for a in rect]) + '\n'
-        content_lines.append(line_one)
+    if len(polys):
+        # 取包裹住object的水平框
+        """
+        rects = []
+        for poly in polys:
+            poly = np.float32(poly).reshape((4, 2))
+            # 这里生成的是左上角的坐标，不是中心点的坐标
+            rect = cv2.boundingRect(poly)  # (x, y, w, h)
+            x = rect[0] + 0.5 * rect[2]  # x + 0.5w
+            y = rect[1] + 0.5 * rect[3]  # y + 0.5h
+            rects.append([x, y, rect[2], rect[3]])
+        rects = np.array(rects, dtype=np.float32)
+        """
+        content_lines = []
+        polys = np.array(polys, dtype=np.float32).reshape(-1, 8)
+        rects = poly2hbb(polys)
+        rects = xyxy2xywh(rects)
+        # 归一化
+        rects[:, [0, 2]] /= img_wh[0]
+        rects[:, [1, 3]] /= img_wh[1]
+
+        for cls_id, rect in zip(cls_ids, rects):
+            line_one = str(cls_id) + ' ' + ' '.join([str(a) for a in rect]) + '\n'
+            content_lines.append(line_one)
+
+    if len(content_lines) == 0:
+        logging.warning(f'no lines to save, the file: {out_file} is empty')
 
     # 将内容写入文件
     with open(out_file, mode='w', encoding='utf-8') as f:
@@ -105,7 +111,7 @@ def dota2yolo(in_file, out_file, classes, img_wh):
 def run(dataset_dir, image_dirname='images', label_dirname='labelTxt'):
     class_filepath = osp.join(dataset_dir, 'classes.txt')
     assert os.path.exists(class_filepath), f'please make sure the classes.txt is in path: {dataset_dir}'
-    with open(class_filepath) as f:
+    with open(class_filepath, 'r', encoding='utf-8') as f:
         classes = [str(x).strip() for x in f.readlines()]
     label_dir = osp.join(dataset_dir, label_dirname)
     image_dir = osp.join(dataset_dir, image_dirname)
@@ -117,10 +123,16 @@ def run(dataset_dir, image_dirname='images', label_dirname='labelTxt'):
     for i, label_file in tqdm(enumerate(label_files), total=len(label_files)):
         out_file = osp.join(save_dir, Path(label_file).name)
         # 在图片文件夹中寻找相同文件名称的图片文件
-        image_file = glob.glob(osp.join(image_dir, filenames[i].rsplit('.')[0]) + '.*')[0]
+        try:
+            image_file = glob.glob(osp.join(image_dir, filenames[i].rsplit('.')[0]) + '.*')[0]
+        except Exception as e:
+            assert 0, f"please make sure the folder: {image_dir} have correct image and imagename"
         assert image_file.rsplit('.')[-1] in IMG_FORMATS, f'find file: {image_file}, but is not an image format'
         img_wh = Image.open(image_file).size
         dota2yolo(label_file, out_file, classes, img_wh)
+    # print msg
+    print(f"convert dataset: {Path(dataset_dir).name} dota label to yolo Success!!!")
+    print(f"convert label is in folder labels")
 
 
 if __name__ == '__main__':
@@ -128,5 +140,3 @@ if __name__ == '__main__':
     run(dataset_dir=opt.dataset_dir,
         image_dirname=opt.image_dirname,
         label_dirname=opt.label_dirname)
-    print(f"convert dataset: {Path(opt.dataset_dir).name} dota label to yolo Success!!!")
-    print(f"convert label is in folder labels")

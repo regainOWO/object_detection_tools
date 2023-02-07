@@ -2,7 +2,7 @@
 # xml2yolo2dota_obb.sh
 
 dataset_dir=$1
-image_dirname=$2
+image_dirname="JPEGImages"
 xml_dir="${dataset_dir}/Annotations"
 
 # 分类数据集
