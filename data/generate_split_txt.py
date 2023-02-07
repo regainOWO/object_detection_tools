@@ -35,10 +35,10 @@ def split_train_val(image_dir, trainval_percent=0.9, train_percent=0.9):
     trainval = random.sample(index, trainval_num)       # 采样训练和验证集
     train = random.sample(trainval, train_num)          # 采样训练集
 
-    ftrainval = open(save_dir + '/trainval.txt', 'w')
-    ftest = open(save_dir + '/test.txt', 'w')
-    ftrain = open(save_dir + '/train.txt', 'w')
-    fval = open(save_dir + '/val.txt', 'w')
+    ftrainval = open(save_dir + '/trainval.txt', 'w', encoding='utf-8')
+    ftest = open(save_dir + '/test.txt', 'w', encoding='utf-8')
+    ftrain = open(save_dir + '/train.txt', 'w', encoding='utf-8')
+    fval = open(save_dir + '/val.txt', 'w', encoding='utf-8')
 
     for i in index:
         abs_path = Path(image_dir).joinpath(image_filenames[i]).as_posix() + '\n'    # 图片文件绝对路径

@@ -36,7 +36,7 @@ def parse_opt():
                         help='split gap size, default is 20')
     parser.add_argument('--subsize', type=int, default=1024,
                         help='spilt image result pixel size [subsize, subsize], its a square, default is 1024')
-    parser.add_argument('--scale', type=int, default=1,
+    parser.add_argument('--scale', type=float, default=1,
                         help='scale image before spilt image result, default is 1')
     parser.add_argument('--image-dirname', type=str, default='images',
                         help='the image directory name under the dataset directory, default is images')
@@ -214,8 +214,11 @@ class GapSplit:
         combine_point_x = (poly[short_startpoint_i[0]] + poly[short_endpoint_i[0]]) / 2
         combine_point_y = (poly[short_startpoint_i[1]] + poly[short_endpoint_i[1]]) / 2
         # 将最短边的两点删除
-        for i in short_startpoint_i + short_endpoint_i:
-            poly.remove(poly[i])
+        if short_endpoint_i[0] != 0:
+            del poly[short_startpoint_i[0]:(short_endpoint_i[1] + 1)]       # 一起删除，避免index重新调整出错
+        else:
+            del poly[short_startpoint_i[0]:(short_startpoint_i[1] + 1)]     # 先删除后面的
+            del poly[short_endpoint_i[0]:(short_endpoint_i[1] + 1)]         # 在删除前面的
         # 将两个点插入进去
         poly.insert(short_startpoint_i[0], combine_point_x)
         poly.insert(short_startpoint_i[1], combine_point_y)
@@ -276,9 +279,10 @@ class GapSplit:
                     ## if the left part is too small, label as '2'
                     content_line = content_line + ' ' + obj['name'] + ' ' + '2' + '\n'
                 content_lines.append(content_line)
-        with open(o_label_file, mode='w', encoding='utf-8') as f:
-            f.writelines(content_lines)
-        self.save_sub_image(img, sub_img_name, left, top)
+        if len(content_lines):      # 当前子图有标签时，才保存标签和图片文件
+            with open(o_label_file, mode='w', encoding='utf-8') as f:
+                f.writelines(content_lines)
+            self.save_sub_image(img, sub_img_name, left, top)
 
     def get_fix_windowsize(self, point, interval, max_length):
         """

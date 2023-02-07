@@ -66,11 +66,15 @@ def dota2yolo(in_file, out_file, classes, img_wh):
     with open(in_file, mode='r', encoding='utf-8') as f:
         labels = [str(x).strip().split(' ') for x in f.readlines()]
     polys, cls_ids = [], []
-    for label in labels:
+    for i, label in enumerate(labels):
         class_name = label[-2]
+        difficult = int(label[-1])
         if class_name not in classes:
-            print(f"{in_file}")
+            print(f"ignore {in_file} line {i}, because label name not in classes.txt")
             continue
+        # elif difficult > 1:
+        #     print(f"ignore {in_file} line {i}, because difficult is 2")
+        #     continue
         polys.append(label[:-2])
         cls_ids.append(classes.index(class_name))
 
