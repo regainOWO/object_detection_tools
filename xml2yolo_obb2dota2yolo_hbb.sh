@@ -1,13 +1,14 @@
 #!/bin/sh
 # xml2yolo2dota_hbb.sh
 # E:/GithubProjects/datasets/XiAnSample/05-PointElement/水塔
+# E:/GithubProjects/datasets/XiAnSample/08-AirportElement/油库
 dataset_dir=$1
 image_dirname=$2
 xml_dir="${dataset_dir}/Annotations"
 
 # 分类数据集
 echo -e "split dataset: ${dataset_dir} in to train val and test"
-python data/split_data.py --xml-dir ${xml_dir}
+python data/split_dataset.py --label-dir ${xml_dir}
 
 # 将voc数据转成yolo obb，并dataset_dir目录下下生成train.txt、val.txt和test.txt
 echo -e "convert voc datatype into yolo obb datatype"

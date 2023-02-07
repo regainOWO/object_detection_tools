@@ -7,7 +7,7 @@ xml_dir="${dataset_dir}/Annotations"
 
 # 分类数据集
 echo -e "split dataset: ${dataset_dir} in to train val and test"
-python data/split_data.py --xml-dir ${xml_dir}
+python data/split_dataset.py --label-dir ${xml_dir}
 
 # 将voc数据转成yolo，并dataset_dir目录下下生成train.txt、val.txt和test.txt
 echo -e "convert voc datatype into yolo hbb datatype"
