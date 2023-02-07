@@ -17,21 +17,18 @@ import argparse
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--label-dir', type=str, required=True, help='input label label path')
-    parser.add_argument('--save-dirname', type=str, default='Main', help='Sample data filename save path')
+    parser.add_argument('--image-dir', type=str, required=True, help='input label label path')
     parser.add_argument('--trainval-percent', type=float, default=0.9, help='dataset train and val label file nums percent in total')
     parser.add_argument('--train-percent', type=float, default=0.9, help='dataset train label file nums percent in train and val')
     opt = parser.parse_args()
     return opt
 
 
-def split_train_val(label_dir, save_dirname, trainval_percent=0.9, train_percent=0.9):
-    label_filenames = os.listdir(label_dir)
-    save_dir = Path(label_dir).parent.joinpath('ImageSets', save_dirname)
-    save_dir.mkdir(exist_ok=True)
-    save_dir = save_dir.as_posix()
+def split_train_val(image_dir, trainval_percent=0.9, train_percent=0.9):
+    image_filenames = os.listdir(image_dir)
+    save_dir = Path(image_dir).parent.as_posix()
 
-    num = len(label_filenames)
+    num = len(image_filenames)
     index = range(num)
     trainval_num = int(num * trainval_percent)          # 训练和验证的数量
     train_num = int(trainval_num * train_percent)       # 训练的数量
@@ -44,26 +41,26 @@ def split_train_val(label_dir, save_dirname, trainval_percent=0.9, train_percent
     fval = open(save_dir + '/val.txt', 'w')
 
     for i in index:
-        name = label_filenames[i][:-4]+'\n'     # label文件名称
+        abs_path = Path(save_dir).joinpath(image_filenames[i]).as_posix() + '\n'    # 图片文件绝对路径
         if i in trainval:
-            ftrainval.write(name)
+            ftrainval.write(abs_path)
             if i in train:
-                ftrain.write(name)
+                ftrain.write(abs_path)
             else:
-                fval.write(name)
+                fval.write(abs_path)
         else:
-            ftest.write(name)
+            ftest.write(abs_path)
 
     ftrainval.close()
     ftrain.close()
     fval.close()
     ftest.close()
 
-    print(f"split dataset: {opt.label_dir} Success!!!, the voc imagesets file is in {save_dir}")
+    print(f"generate split txt file Success!!!, its in path {save_dir}")
+
 
 if __name__ == "__main__":
     opt = parse_opt()
-    split_train_val(label_dir=opt.label_dir,
-                    save_dirname=opt.save_dirname,
+    split_train_val(image_dir=opt.image_dir,
                     trainval_percent=opt.trainval_percent,
                     train_percent=opt.train_percent)

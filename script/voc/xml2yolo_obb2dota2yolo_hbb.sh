@@ -19,5 +19,3 @@ python data/convert/le180yolo2dota.py --dataset-dir ${dataset_dir} --image-dirna
 # 将dota格式转成yolo hbb格式
 echo -e "convert dota datatype into yolo hbb datatype"
 python data/convert/dota2yolo.py --dataset-dir ${dataset_dir} --image-dirname ${image_dirname}
-
-echo -e "convert successfull!!"

@@ -12,5 +12,3 @@ python data/split_vocdataset.py --label-dir ${xml_dir}
 # 将voc数据转成yolo，并dataset_dir目录下下生成train.txt、val.txt和test.txt
 echo -e "convert voc datatype into yolo hbb datatype"
 python data/convert/voc2yolo --dataset-dir ${dataset_dir}
-
-echo -e "convert successfull!!"

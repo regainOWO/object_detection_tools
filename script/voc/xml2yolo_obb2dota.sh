@@ -15,5 +15,3 @@ python data/convert/voc2yolo.py --dataset-dir ${dataset_dir} --obb
 # 将yolo obb格式转成 dota格式
 echo -e "convert yolo obb datatype into dota datatype"
 python data/convert/le180yolo2dota.py --dataset-dir ${dataset_dir} --image-dirname ${image_dirname}
-
-echo -e "convert successfull!!"

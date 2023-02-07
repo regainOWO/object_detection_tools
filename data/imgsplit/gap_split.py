@@ -382,6 +382,7 @@ def run(dataset_dir, gap, subsize, scale, image_dirname, label_dirname, output_p
                      ext=ext,
                      num_process=workers)
     split.split_image(scale)
+    print("Split images Success!!!")
 
 
 if __name__ == '__main__':
