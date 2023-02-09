@@ -3,10 +3,12 @@
 将dota的数据集格式转换成yolo格式，取包裹住多边形最小的矩形框
 x1 y1 x2 y2 x3 y3 x4 y4 classname diffcult ========> cls_id cx cy w h
 
-使用方法，需要输入三个参数：
---dataset-dir: 数据集的根路径
+使用方法，需要输入四个参数：
+--dataset-dir: 数据集的根路径。同时要确保classes.txt在该目录下，输出数据集label的索引值见按照该文件中的内容来确定。
 --image-dirname: 图片的文件夹名称，默认值为images（图片文件夹需要放在数据集的根文件夹中）
 --label-dirname: dota标签的文件夹名称，默认值为labelTxt（标签文件夹需要放在数据集的根文件夹中）
+--difficult-thres: dota标签中每个标签都还有一个difficult值，用于表示识别的难易度，值越大，越难识别。
+该参数的默认值为2，difficult的值若小于该值，则将标签保留下来，反之亦然
 
 输入的路径：文件夹名称固定值为labels (放在数据集的根文件夹中）
 """
@@ -16,6 +18,7 @@ import glob
 import logging
 import os
 import os.path as osp
+import shutil
 from pathlib import Path
 
 import cv2
@@ -30,10 +33,19 @@ IMG_FORMATS = 'bmp', 'dng', 'jpeg', 'jpg', 'mpo', 'png', 'tif', 'tiff', 'webp', 
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-dir', type=str, required=True, help='input dataset dir')
-    parser.add_argument('--image-dirname', type=str, default='images', help='the image directory name under the dataset directory')
-    parser.add_argument('--label-dirname', type=str, default='labelTxt', help='the dota label directory name under the dataset directory')
+    parser.add_argument('--image-dirname', type=str, default='images',
+                        help='the image directory name under the dataset directory')
+    parser.add_argument('--label-dirname', type=str, default='labelTxt',
+                        help='the dota label directory name under the dataset directory')
+    parser.add_argument('--difficult-thres', type=int, default=1,
+                        help='skip the lable by difficult less than or equal to difficult-thres')
     opt = parser.parse_args()
     return opt
+
+
+def get_path_basename(path):
+    p = Path(path)
+    return p.name.split(p.suffix)[0]
 
 
 def poly2hbb(polys):
@@ -62,7 +74,7 @@ def xyxy2xywh(x):
     return y
 
 
-def dota2yolo(in_file, out_file, classes, img_wh):
+def dota2yolo(in_file, out_file, classes, img_wh, difficult_thres):
     with open(in_file, mode='r', encoding='utf-8') as f:
         labels = [str(x).strip().split(' ') for x in f.readlines()]
     polys, cls_ids = [], []
@@ -72,9 +84,9 @@ def dota2yolo(in_file, out_file, classes, img_wh):
         if class_name not in classes:
             print(f"ignore {in_file} line {i}, because label name not in classes.txt")
             continue
-        # elif difficult > 1:
-        #     print(f"ignore {in_file} line {i}, because difficult is 2")
-        #     continue
+        elif difficult > difficult_thres:
+            print(f"ignore {in_file} line {i}, because difficult is greater than {difficult_thres}")
+            continue
         polys.append(label[:-2])
         cls_ids.append(classes.index(class_name))
 
@@ -112,28 +124,32 @@ def dota2yolo(in_file, out_file, classes, img_wh):
         f.writelines(content_lines)
 
 
-def run(dataset_dir, image_dirname='images', label_dirname='labelTxt'):
+def run(dataset_dir, image_dirname='images', label_dirname='labelTxt', difficult_thres: int=1):
+    assert difficult_thres >= 0, "the param difficult_thres must be greate than or equal to 0"
     class_filepath = osp.join(dataset_dir, 'classes.txt')
     assert os.path.exists(class_filepath), f'please make sure the classes.txt is in path: {dataset_dir}'
     with open(class_filepath, 'r', encoding='utf-8') as f:
         classes = [str(x).strip() for x in f.readlines()]
     label_dir = osp.join(dataset_dir, label_dirname)
     image_dir = osp.join(dataset_dir, image_dirname)
-    filenames = os.listdir(label_dir)
-    label_files = [osp.join(label_dir, x) for x in filenames]
+    label_files = [osp.join(label_dir, x) for x in os.listdir(label_dir)]
     save_dir = osp.join(dataset_dir, 'labels')
-    os.makedirs(save_dir, exist_ok=True)
+    if os.path.exists(save_dir):
+        logging.info(f"remove outdate directory {save_dir}...")
+        shutil.rmtree(save_dir)
+    os.makedirs(save_dir)
 
-    for i, label_file in tqdm(enumerate(label_files), total=len(label_files)):
+    for label_file in tqdm(label_files, total=len(label_files)):
         out_file = osp.join(save_dir, Path(label_file).name)
         # 在图片文件夹中寻找相同文件名称的图片文件
+        file_basename = get_path_basename(label_file)
         try:
-            image_file = glob.glob(osp.join(image_dir, filenames[i].rsplit('.')[0]) + '.*')[0]
+            image_file = glob.glob(osp.join(image_dir, file_basename + '.*'))[0]
         except Exception as e:
-            assert 0, f"please make sure the folder: {image_dir} have correct image and imagename"
+            assert 0, f"please make sure the folder: {image_dir} have correct image named like {file_basename}"
         assert image_file.rsplit('.')[-1] in IMG_FORMATS, f'find file: {image_file}, but is not an image format'
         img_wh = Image.open(image_file).size
-        dota2yolo(label_file, out_file, classes, img_wh)
+        dota2yolo(label_file, out_file, classes, img_wh, difficult_thres)
     # print msg
     print(f"convert dataset: {Path(dataset_dir).name} dota label to yolo Success!!!")
     print(f"convert label is in folder labels")
@@ -143,4 +159,5 @@ if __name__ == '__main__':
     opt = parse_opt()
     run(dataset_dir=opt.dataset_dir,
         image_dirname=opt.image_dirname,
-        label_dirname=opt.label_dirname)
+        label_dirname=opt.label_dirname,
+        difficult_thres=opt.difficult_thres)

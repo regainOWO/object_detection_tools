@@ -19,6 +19,7 @@ import glob
 import logging
 import os
 import os.path as osp
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -35,6 +36,11 @@ def parse_opt():
     parser.add_argument('--label-dirname', type=str, default='labels_obb', help='the yolo obb label directory name under the dataset directory')
     opt = parser.parse_args()
     return opt
+
+
+def get_path_basename(path):
+    p = Path(path)
+    return p.name.split(p.suffix)[0]
 
 
 def rbox2poly(obboxes):
@@ -98,18 +104,21 @@ def run(dataset_dir, image_dirname='images', label_dirname='labels_obb'):
         classes = [str(x).strip() for x in f.readlines()]
     label_dir = osp.join(dataset_dir, label_dirname)
     image_dir = osp.join(dataset_dir, image_dirname)
-    filenames = os.listdir(label_dir)
-    label_files = [osp.join(label_dir, x) for x in filenames]
+    label_files = [osp.join(label_dir, x) for x in os.listdir(label_dir)]
     save_dir = osp.join(dataset_dir, 'labelTxt')
-    os.makedirs(save_dir, exist_ok=True)
+    if os.path.exists(save_dir):
+        logging.info(f"remove outdate directory {save_dir}...")
+        shutil.rmtree(save_dir)
+    os.makedirs(save_dir)
 
-    for i, label_file in tqdm(enumerate(label_files), total=len(label_files)):
+    for label_file in tqdm(label_files, total=len(label_files)):
         out_file = osp.join(save_dir, Path(label_file).name)
         # 在图片文件夹中寻找相同文件名称的图片文件
+        file_basename = get_path_basename(label_file)
         try:
-            image_file = glob.glob(osp.join(image_dir, filenames[i].rsplit('.')[0]) + '.*')[0]
+            image_file = glob.glob(osp.join(image_dir, file_basename + '.*'))[0]
         except Exception as e:
-            assert 0, f"please make sure the folder: {image_dir} have correct image and imagename"
+            assert 0, f"please make sure the folder: {image_dir} have correct image named like {file_basename}"
         assert image_file.rsplit('.')[-1] in IMG_FORMATS, f'find file: {image_file}, but is not an image format'
         img_wh = Image.open(image_file).size
         le90yolo2dota(label_file, out_file, classes, img_wh)

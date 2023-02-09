@@ -36,7 +36,7 @@ def parse_opt():
                         help='split gap size, default is 20')
     parser.add_argument('--subsize', type=int, default=1024,
                         help='spilt image result pixel size [subsize, subsize], its a square, default is 1024')
-    parser.add_argument('--scale', type=float, default=1,
+    parser.add_argument('--scale', type=float, default=1.0,
                         help='scale image before spilt image result, default is 1')
     parser.add_argument('--image-dirname', type=str, default='images',
                         help='the image directory name under the dataset directory, default is images')
@@ -336,6 +336,10 @@ class GapSplit:
             return
         label_file = osp.join(self.label_dir, name + '.txt')
         objects = parse_dota_label(label_file)
+        fit_img_scale = True
+        if fit_img_scale:
+            h, w = img.shape[:2]
+            rate = self.subsize / min(h, w)
         # 根据rate对标签和图片进行缩放
         for obj in objects:
             obj['poly'] = list(map(lambda x : rate * x, obj['poly']))

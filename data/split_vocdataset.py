@@ -27,9 +27,9 @@ def parse_opt():
 
 def split_train_val(label_dir, save_dirname, trainval_percent=0.9, train_percent=0.9):
     label_filenames = os.listdir(label_dir)
-    save_dir = Path(label_dir).parent.joinpath('ImageSets', save_dirname)
-    save_dir.mkdir(exist_ok=True)
-    save_dir = save_dir.as_posix()
+    os.path.pardir
+    save_dir = Path(label_dir).parent.joinpath('ImageSets', save_dirname).as_posix()
+    os.makedirs(save_dir, exist_ok=True)
 
     num = len(label_filenames)
     index = range(num)
