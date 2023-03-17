@@ -21,6 +21,7 @@
 │   └── xxx.jpg
 ├── val2017
 │   └── xxx.jpg
+├── xxx.yaml
 ├── classes.txt
 ├── train.txt
 └── val.txt
@@ -31,10 +32,11 @@
 │   ├── images
 │   ├── labels
 │   └── classes.txt
-└── val
-    ├── images
-    ├── labels
-    └── classes.txt
+├── val
+│   ├── images
+│   ├── labels
+│   └── classes.txt
+└── xxx.yaml
 
 """
 import argparse
@@ -44,6 +46,8 @@ import json
 import shutil
 from tqdm import tqdm
 from pathlib import Path
+
+import yaml
 
 
 def parse_opt():
@@ -77,18 +81,18 @@ def ltwh2xywh_normalize(size, box):
 def coco2yolo(json_file: str, labels_dir: str):
     data = json.load(open(json_file, 'r'))
 
-    id_map = {}
+    names = {}
 
     # 解析目标类别，也就是 categories 字段，并将类别写入文件 classes.txt 中，存放在label_dir的同级目录中
     data_dir = Path(labels_dir).parent.as_posix()
-    with open(osp.join(data_dir, 'classes.txt'), 'w') as f:
+    with open(osp.join(data_dir, 'classes.txt'), 'w', encoding='utf-8') as f:
         for i, category in enumerate(data['categories']):
             f.write(f"{category['name']}\n")
-            id_map[category['id']] = i
+            names[category['id']] = category['name']
     print(f"generate classes.txt under the {data_dir} Success!!")
 
     img_filenames = []
-    for img in tqdm(data['images'],total=len(data['images'])):
+    for img in tqdm(data['images'],total=len(data['images']), desc="convert data...."):
 
         # 解析 images 字段，分别取出图片文件名、图片的宽和高、图片id
         filename = img["file_name"]
@@ -106,14 +110,20 @@ def coco2yolo(json_file: str, labels_dir: str):
 
                 # 写入txt，共5个字段
                 content_lines.append("%s %s %s %s %s\n" % (
-                    id_map[ann["category_id"]], box[0], box[1], box[2], box[3]))
+                    ann["category_id"], box[0], box[1], box[2], box[3]))
         # 将图片的标签写入到文件中
         with open(label_file, 'w', encoding='utf-8') as f:
             f.writelines(content_lines)
         img_filenames.append(filename)
+    
+    return img_filenames, names
 
 
 def new_dataset(output_dir, o_train_img_dir, o_val_img_dir, train_json_file, val_json_file):
+    # 删除old，创建输出路径的文件夹
+    if osp.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
     # 转成绝对路径
     o_train_img_dir = osp.abspath(o_train_img_dir)
     o_val_img_dir = osp.abspath(o_val_img_dir)
@@ -126,9 +136,9 @@ def new_dataset(output_dir, o_train_img_dir, o_val_img_dir, train_json_file, val
     os.makedirs(train_labels_dir)
 
     # convert train label
-    print("start to convert train annotation file %s.....".format(train_json_file))
-    train_img_filenames = coco2yolo(train_json_file, train_labels_dir)
-    print("convert %s Success!! ".format(train_json_file))
+    print(f"start to convert train annotation file {train_json_file}.....")
+    train_img_filenames, names = coco2yolo(train_json_file, train_labels_dir)
+    print(f"convert {train_json_file} Success!! ")
     # copy train image
     for img_filename in tqdm(train_img_filenames, total=len(train_img_filenames), desc="copy train image...."):
         o_img_file = osp.join(o_train_img_dir, img_filename)
@@ -142,9 +152,21 @@ def new_dataset(output_dir, o_train_img_dir, o_val_img_dir, train_json_file, val
     os.makedirs(val_images_dir)
     os.makedirs(val_labels_dir)
     # convert val label
-    print("start to convert val annotation file %s".format(val_json_file))
-    val_img_filenames = coco2yolo(val_json_file, val_labels_dir)
-    print("convert %s Success!! ".format(val_json_file))
+    print(f"start to convert val annotation file {val_json_file}")
+    val_img_filenames, names = coco2yolo(val_json_file, val_labels_dir)
+    print(f"convert {val_json_file} Success!! ")
+
+    # Save dataset.yaml
+    d = {'path': osp.abspath(output_dir),
+         'train': "images/train",
+         'val': "images/val",
+         'test': None,
+         'nc': len(names.keys()),       # yolov5 later
+         'names': names}  # dictionary
+
+    with open(osp.join(output_dir, Path(output_dir).with_suffix('.yaml').name), 'w', encoding='utf-8') as f:
+        yaml.dump(d, f, sort_keys=False)
+    print(f"generate yolo yaml file under the {output_dir} Success!!")
 
     # copy val image
     for img_filename in tqdm(val_img_filenames, total=len(val_img_filenames), desc="copy val image...."):
@@ -156,21 +178,30 @@ def new_dataset(output_dir, o_train_img_dir, o_val_img_dir, train_json_file, val
 
 def just_convertlabel(dataset_dir, train_img_dir, val_img_dir, train_json_file, val_json_file):
     labels_dir = osp.join(dataset_dir, "labels")
-    # 删除old，创建输出路径的文件夹
-    if osp.exists(labels_dir):
-        shutil.rmtree(labels_dir)
-    os.makedirs(labels_dir)
+    os.makedirs(labels_dir, exist_ok=True)
     # 转成绝对路径
     train_img_dir = osp.abspath(train_img_dir)
     val_img_dir = osp.abspath(val_img_dir)
     # train
-    print("start to convert train annotation file %s.....".format(train_json_file))
-    train_img_filenames = coco2yolo(train_json_file, labels_dir)
-    print("convert %s Success!! ".format(train_json_file))
+    print(f"start to convert train annotation file {train_json_file}.....")
+    train_img_filenames, names = coco2yolo(train_json_file, labels_dir)
+    print(f"convert {train_json_file} Success!! ")
     # val
-    print("start to convert val annotation file %s".format(val_json_file))
-    val_img_filenames = coco2yolo(val_json_file, labels_dir)
-    print("convert %s Success!! ".format(val_json_file))
+    print(f"start to convert val annotation file {val_json_file}")
+    val_img_filenames, names = coco2yolo(val_json_file, labels_dir)
+    print(f"convert {val_json_file} Success!! ")
+
+    # Save dataset.yaml
+    d = {'path': osp.abspath(dataset_dir),
+         'train': "images/train",
+         'val': "images/val",
+         'test': None,
+         'nc': len(names.keys()),       # yolov5 later
+         'names': names}  # dictionary
+
+    with open(osp.join(dataset_dir, Path(dataset_dir).with_suffix('.yaml').name), 'w', encoding='utf-8') as f:
+        yaml.dump(d, f, sort_keys=False)
+    print(f"generate yolo yaml file under the {dataset_dir} Success!!")
 
     # image file path txt
     # train.txt
@@ -197,10 +228,6 @@ def run(dataset_dir, train_img_dirname, val_img_dirname, train_json_filename, va
     if output_dir is None:
         just_convertlabel(dataset_dir, train_img_dir, val_img_dir, train_json_file, val_json_file)
     else:
-        # 删除old，创建输出路径的文件夹
-        if osp.exists(output_dir):
-            shutil.rmtree(output_dir)
-        os.makedirs(output_dir)
         new_dataset(output_dir, train_img_dir, val_img_dir, train_json_file, val_json_file)
 
 
