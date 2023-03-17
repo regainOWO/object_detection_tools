@@ -33,31 +33,33 @@ def parse_opt():
 
 # xyxy2xywh 并归一化
 def xyxy2xywh_normalize(size, box):
-    dw = 1./(size[0])
-    dh = 1./(size[1])
-    x = (box[0] + box[1])/2.0 - 1
-    y = (box[2] + box[3])/2.0 - 1
+    dw = 1. / (size[0])
+    dh = 1. / (size[1])
+    x = (box[0] + box[1]) / 2.0 - 1
+    y = (box[2] + box[3]) / 2.0 - 1
     w = box[1] - box[0]
     h = box[3] - box[2]
-    x = x*dw
-    w = w*dw
-    y = y*dh
-    h = h*dh
-    return (x, y, w, h)
+
+    x = x * dw
+    w = w * dw
+    y = y * dh
+    h = h * dh
+    return x, y, w, h
 
 
 # 弧度转成角度 并归一化
 def xywha_normalize(size, rbox):
     pi = 3.141592653589793
-    dw = 1./(size[0])
-    dh = 1./(size[1])
+    dw = 1. / (size[0])
+    dh = 1. / (size[1])
     x, y, w, h, a = rbox
-    x = x*dw
-    w = w*dw
-    y = y*dh
-    h = h*dh
+    
+    x = x * dw
+    w = w * dw
+    y = y * dh
+    h = h * dh
     a = int(a * 180 / pi)   # 弧度转成角度
-    return (x, y, w, h, a)
+    return x, y, w, h, a
 
 
 def xml2txt(xml_file, out_file, classes, isOBB=False):
