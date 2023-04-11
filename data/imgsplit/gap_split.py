@@ -15,6 +15,7 @@ import logging
 import math
 import os
 import os.path as osp
+import re
 import shutil
 from itertools import repeat
 from multiprocessing.pool import Pool
@@ -32,6 +33,8 @@ IMG_FORMATS = 'bmp', 'dng', 'jpeg', 'jpg', 'mpo', 'png', 'tif', 'tiff', 'webp', 
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-dir', type=str, required=True, help='input dataset dir')
+    parser.add_argument('--scale2subsize', action='store_true',
+                        help='do not split, just scale img to subsize')
     parser.add_argument('--gap', type=int, default=200,
                         help='split gap size, default is 20')
     parser.add_argument('--subsize', type=int, default=1024,
@@ -46,6 +49,8 @@ def parse_opt():
                         help='output path, default is split directory under the your workingdirectory')
     parser.add_argument('--save-ext', type=str, default='.png',
                         help='split image save suffix, default is .png')
+    parser.add_argument('--nosave-empty', action='store_true',
+                        help='split image may do no have label, it will not save image and label')
     parser.add_argument('--workers', type=int, default=4, help='max split workers process num')
     opt = parser.parse_args()
     return opt
@@ -66,7 +71,7 @@ def poly_flatten(poly):
 
 def parse_dota_label(label_file):
     with open(label_file, mode='r', encoding='utf-8') as f:
-        lines = [x.strip() for x in f.readlines()]
+        lines = [x.strip() for x in f.readlines() if re.match('(\d*[.]\d\s){8}', x)]
 
     objects = []
     for line in lines:
@@ -122,17 +127,20 @@ class GapSplit:
                  output_path,
                  image_dirname='images',
                  label_dirname='labelTxt',
+                 scale2subsize=False,
                  gap=100,
                  subsize=1024,
                  thresh=0.7,
                  best_order=True,
                  padding=True,
                  ext='.png',
+                 save_empty=True,
                  num_process=1):
         """
         :param dataset_dir: dataset_dir path for dota data
         :param output_path: output dataset path for dota data,
         the outputpath have the subdirectory, 'images' and 'labelTxt'
+        :param scale2subsize: do not split image, scale origin image to subsize
         :param image_dirname: image dir name under the dataset dir
         :param label_dirname: label dir name under the dataset dir
         :param code: encodeing format of txt file
@@ -141,9 +149,11 @@ class GapSplit:
         :param thresh: the thresh determine whether to keep the instance if the instance is cut down in the process of split
         :param choosebestpoint: used to choose the first point for the
         :param ext: ext for save image format
+        :param save_empty: split image may not have label, if true, it will save empty label and image file
         """
         self.dataset_dir = dataset_dir
         self.output_path = output_path
+        self.scale2subsize = scale2subsize
         self.gap = gap
         self.subsize = subsize
         self.slide = self.subsize - self.gap
@@ -155,6 +165,7 @@ class GapSplit:
         self.best_order = best_order
         self.padding = padding
         self.ext = ext
+        self.save_empty = save_empty
         self.num_process = min(num_process, NUM_THREADS)
 
         # 删除之前切割的文件
@@ -279,7 +290,8 @@ class GapSplit:
                     ## if the left part is too small, label as '2'
                     content_line = content_line + ' ' + obj['name'] + ' ' + '2' + '\n'
                 content_lines.append(content_line)
-        if len(content_lines):      # 当前子图有标签时，才保存标签和图片文件
+        # if len(content_lines):      
+        if self.save_empty or len(content_lines):   # 当前子图有标签时或要保存空图，才保存标签和图片文件
             with open(o_label_file, mode='w', encoding='utf-8') as f:
                 f.writelines(content_lines)
             self.save_sub_image(img, sub_img_name, left, top)
@@ -336,8 +348,7 @@ class GapSplit:
             return
         label_file = osp.join(self.label_dir, name + '.txt')
         objects = parse_dota_label(label_file)
-        fit_img_scale = True
-        if fit_img_scale:
+        if self.scale2subsize:
             h, w = img.shape[:2]
             rate = self.subsize / min(h, w)
         # 根据rate对标签和图片进行缩放
@@ -379,15 +390,17 @@ class GapSplit:
                 self.single_split([image_file, rate])
 
 
-def run(dataset_dir, gap, subsize, scale, image_dirname, label_dirname, output_path, ext, workers=1):
+def run(dataset_dir, scale2subsize, gap, subsize, scale, image_dirname, label_dirname, output_path, ext, save_empty=True, workers=1):
     # example usage of ImgSplit
     split = GapSplit(dataset_dir=dataset_dir,
                      output_path=output_path,
+                     scale2subsize=scale2subsize,
                      image_dirname=image_dirname,
                      label_dirname=label_dirname,
                      gap=gap,
                      subsize=subsize,
                      ext=ext,
+                     save_empty=save_empty,
                      num_process=workers)
     split.split_image(scale)
     print("Split images Success!!!")
@@ -396,6 +409,7 @@ def run(dataset_dir, gap, subsize, scale, image_dirname, label_dirname, output_p
 if __name__ == '__main__':
     opt = parse_opt()
     run(dataset_dir=opt.dataset_dir,
+        scale2subsize=opt.scale2subsize,
         gap=opt.gap,
         subsize=opt.subsize,
         scale=opt.scale,
@@ -403,4 +417,5 @@ if __name__ == '__main__':
         label_dirname=opt.label_dirname,
         output_path=opt.output_path,
         ext=opt.save_ext,
+        save_empty=not opt.nosave_empty,
         workers=opt.workers)

@@ -23,6 +23,7 @@ import shutil
 from pathlib import Path
 
 import numpy as np
+import torch
 from PIL import Image
 from tqdm import tqdm
 
@@ -52,21 +53,37 @@ def rbox2poly(obboxes):
     Returns:
         polys (array/tensor): (num_gts, [x1 y1 x2 y2 x3 y3 x4 y4])
     """
-    center, w, h, theta = np.split(obboxes, (2, 3, 4), axis=-1)
-    Cos, Sin = np.cos(theta), np.sin(theta)
+    if isinstance(obboxes, torch.Tensor):
+        center, w, h, theta = obboxes[:, :2], obboxes[:, 2:3], obboxes[:, 3:4], obboxes[:, 4:5]
+        Cos, Sin = torch.cos(theta), torch.sin(theta)
 
-    vector1 = np.concatenate(
-        [w/2 * Cos, -w/2 * Sin], axis=-1)
-    vector2 = np.concatenate(
-        [-h/2 * Sin, -h/2 * Cos], axis=-1)
+        vector1 = torch.cat(
+            (w/2 * Cos, -w/2 * Sin), dim=-1)
+        vector2 = torch.cat(
+            (-h/2 * Sin, -h/2 * Cos), dim=-1)
+        point1 = center + vector1 + vector2
+        point2 = center + vector1 - vector2
+        point3 = center - vector1 - vector2
+        point4 = center - vector1 + vector2
+        order = obboxes.shape[:-1]
+        return torch.cat(
+            (point1, point2, point3, point4), dim=-1).reshape(*order, 8)
+    else:
+        center, w, h, theta = np.split(obboxes, (2, 3, 4), axis=-1)
+        Cos, Sin = np.cos(theta), np.sin(theta)
 
-    point1 = center + vector1 + vector2
-    point2 = center + vector1 - vector2
-    point3 = center - vector1 - vector2
-    point4 = center - vector1 + vector2
-    order = obboxes.shape[:-1]
-    return np.concatenate(
-        [point1, point2, point3, point4], axis=-1).reshape(*order, 8)
+        vector1 = np.concatenate(
+            [w/2 * Cos, -w/2 * Sin], axis=-1)
+        vector2 = np.concatenate(
+            [-h/2 * Sin, -h/2 * Cos], axis=-1)
+
+        point1 = center + vector1 + vector2
+        point2 = center + vector1 - vector2
+        point3 = center - vector1 - vector2
+        point4 = center - vector1 + vector2
+        order = obboxes.shape[:-1]
+        return np.concatenate(
+            [point1, point2, point3, point4], axis=-1).reshape(*order, 8)
 
 
 def le90yolo2dota(in_file, out_file, classes, img_wh):

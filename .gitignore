@@ -1,1 +1,4 @@
 xian/
+
+# IDE user config file
+.vscode/
