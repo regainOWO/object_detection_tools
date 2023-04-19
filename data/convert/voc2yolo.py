@@ -159,7 +159,7 @@ def run(dataset_dir, isOBB=False):
             list_file.write(f'{images_dir}/{image_id}.{image_suffix}\n')
         list_file.close()
     # print msg
-    print(CLASS_NAMES)
+    print(f"dataset xml file total class name count: {CLASS_NAMES}")
     print(f"convert dataset: {Path(dataset_dir).name} voc label to yolo Success!!!")
     print(f"in folder: {dataset_dir}. generate train.txt、val.txt and test.txt Success!!!")
     print(f"convert label is in folder {label_dirname}")

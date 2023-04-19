@@ -43,25 +43,6 @@ class Colors:
 colors = Colors()  # create instance for 'from utils.plots import colors'
 
 
-def make_dir(dirpath, exist_ok=False):
-    """
-    创建文件夹或是多个文件夹，当其存在时会删除重新创建，避免冲突
-    @param dirpath: str(path) or a list of path
-    @:param exist_ok: 如果该文件夹存在的情况下，如果设置为 False，则删除后重新创建，设置为 True 则不管
-    """
-
-    def _mkdir(dir, exist_ok):
-        os.makedirs(dir, exist_ok=exist_ok)
-
-    if isinstance(dirpath, list):
-        for d in dirpath:
-            _mkdir(d, exist_ok)
-    elif isinstance(dirpath, str):
-        _mkdir(dirpath, exist_ok)
-    else:
-        assert 0, f'make directory error: you passed param dirpath is {dirpath}, its type must be list or str'
-
-
 class DrawBbox:
     def __init__(self, class_list: list=None, thickness=2):
         """
@@ -79,22 +60,25 @@ class DrawBbox:
         img = cv2.imdecode(np.fromfile(img_path, dtype=np.uint8), -1)
         img_h, img_w = img.shape[:2]
 
-        with open(label_path) as file_list:
-            for line in file_list.readlines():
-                class_name = 'other'
-                cls_id = -1
-                if len(line.split(' ')) == 5:
+        with open(label_path, 'r', encoding='utf-8') as f:
+            for line in f.readlines():
+                line = str(line).strip()
+                data = line.split(' ')
+                label_length = len(data)
+                if label_length == 5:   # id, x, y, w, h
+                    # 去归一化
                     cls_id, x, y, w, h = int(data[0]), float(data[1]) * img_w, float(data[2]) * img_h, float(data[3]) * img_w, float(
                         data[4]) * img_h
+                    # hbb -> poly
                     poly = [[x - 0.5 * w, y - 0.5 * h], [x + 0.5 * w, y - 0.5 * h],
                             [x + 0.5 * w, y + 0.5 * h], [x - 0.5 * w, y + 0.5 * h]]
-                    poly = np.array(poly, dtype=np.int0)
+                    poly = np.array(poly, dtype=np.int64)
                     class_name = self.class_list[cls_id]
                     cv2.drawContours(image=img, contours=[poly], contourIdx=-1, color=self.colors(cls_id),
                                      thickness=self.thickness)
                     c1 = (int(rect[0][0]), int(rect[0][1]))
-                elif len(line.split(' ')) == 6:
-                    data = line.split("\n")[0].split(" ")
+                elif label_length == 6:     # rbox
+                    # 去归一化
                     cls_id, x, y, w, h, theta = int(data[0]), float(data[1]) * img_w, float(data[2]) * img_h, float(data[3]) * img_w, \
                                         float(data[4]) * img_h, int(data[5])
 
@@ -106,8 +90,7 @@ class DrawBbox:
                                      thickness=self.thickness)
                     c1 = (int(rect[0][0]), int(rect[0][1]))
 
-                elif len(line.split(' ')) == 10:
-                    data = line.split("\n")[0].split(" ")
+                elif label_length == 10:
                     poly = data[0:-2]
                     class_name = data[-2]
                     if class_name not in self.class_list:
@@ -121,8 +104,7 @@ class DrawBbox:
                                      thickness=self.thickness)
                     c1 = np.sum(poly, axis=0)[0] / 4  # 计算中心点坐标
                     c1 = int(c1[0]), int(c1[1])
-                elif len(line.split(' ')) == 11:
-                    data = line.split("\n")[0].split(" ")
+                elif label_length == 11:
                     class_name = data[-1]
                     if class_name not in self.class_list:
                         self.class_list.append(class_name)
@@ -141,35 +123,13 @@ class DrawBbox:
                     break
 
                 # t_size = cv2.getTextSize(class_name, 0, fontScale=1 / 4, thickness=self.thickness)[0]
-                try:
-                    cv2.putText(img, class_name, (c1[0], c1[1] - 2), 0, 1, self.colors(cls_id), thickness=self.thickness,
-                                lineType=cv2.LINE_AA)
-                except:
-                    cv2.putText(img, class_name, (c1[0], c1[1] - 2), 0, 1, self.colors(cls_id),
-                                thickness=self.thickness,
-                                lineType=cv2.LINE_AA)
+
+                cv2.putText(img, class_name, (c1[0], c1[1] - 2), 0, 1, self.colors(cls_id), thickness=self.thickness, lineType=cv2.LINE_AA)
 
         img_name = Path(img_path).name
         cv2.imencode('.' + img_name.split('.')[-1], img)[1].tofile(osp.join(output_dir, img_name))
 
-    def draw_batch(self, input_dir:str, label_dir:str, output_dir:str):
-        """
-        对yolo和dota两种格式的数据进行画图
-            0 0.8058167695999146 0.40044307708740234 0.6847715973854065 0.3581983745098114 91
-            1367.196 1149.1193 1352.5274 134.8563 1893.1379 127.0375 1907.8070 1141.3006 matou 0
-        @param input_dir: 图像文件夹
-        @param label_dir: 标签文件夹
-        @param output_dir: 画好的图像保存路径
-        @param class_list: yolo 用的是 class_id 所以需要指定其对应的类名
-        @return:
-        """
-        os.makedirs(output_dir, exist_ok=True)
-        for image_name in tqdm(os.listdir(input_dir)):
-            label_path = osp.join(label_dir, image_name.split('.')[0] + '.txt')
-            img_path = osp.join(input_dir, image_name)
-            self.draw_single(img_path, label_path, output_dir)
-
-    def draw_batch(self, image_files:list, label_dir:str, output_dir:str):
+    def draw_batch(self, image_files: list, label_dir: str, output_dir: str):
         """
         对yolo和dota两种格式的数据进行画图
             0 0.8058167695999146 0.40044307708740234 0.6847715973854065 0.3581983745098114 91
@@ -193,9 +153,6 @@ def run(dataset_dir, image_dirname, label_dirname, output_dirname):
     output_dir = osp.join(dataset_dir, 'plot', output_dirname)
     classes_file = osp.join(dataset_dir, 'classes.txt')
 
-    # image_paths_file = osp.join(dataset_dir, 'test.txt')
-    # with open(image_paths_file, mode='r', encoding='utf-8') as f:
-    #     image_files = [x.strip() for x in f.readlines()]
     image_dir = osp.join(dataset_dir, image_dirname)
     image_files = [osp.join(image_dir, x) for x in os.listdir(image_dir)]
     with open(classes_file, mode='r', encoding='utf-8') as f:
