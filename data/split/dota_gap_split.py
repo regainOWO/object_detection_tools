@@ -10,7 +10,7 @@ DOTA遥感数据集以及相关工具DOTA_devkit的整理(踩坑记录): https:/
 """
 
 import argparse
-import copy
+from copy import deepcopy
 import logging
 import math
 import os
@@ -197,12 +197,14 @@ class GapSplit:
 
     def save_sub_image(self, img, sub_img_name, left, top):
         """保存切割的图片"""
-        sub_img = copy.deepcopy(img[top: (top + self.subsize), left: (left + self.subsize)])
+        # sub_img = deepcopy(img[top: (top + self.subsize), left: (left + self.subsize), :])
+        sub_img = deepcopy(img[top: (top + self.subsize), left: (left + self.subsize)])
         o_image_file = os.path.join(self.o_image_dir, sub_img_name + self.ext)
         h, w = sub_img.shape[:2]
         if self.padding and [h, w] != [self.subsize, self.subsize]:
-            o_img = np.zeros((self.subsize, self.subsize, 3))
-            o_img[0:h, 0:w, :] = sub_img
+            o_img = cv2.resize(np.zeros_like(sub_img), (self.subsize, self.subsize))
+            # o_img[0:h, 0:w, :] = sub_img
+            o_img[0:h, 0:w] = sub_img
         else:
             o_img = sub_img
 
@@ -306,14 +308,19 @@ class GapSplit:
             return point, interval
         else:
             d = max_length - interval
-            if d >= 0:                  # 图像宽度或高度比subsize大，则window的右下角取图片的右或下边界
-                return d, interval
-            else:                       # 图像宽度或高度比subsize小，则window的左上角取图片的左或上边界，改变windowsize的大小最大为图片的宽度或高度
-                return 0, abs(d)
+            if d >= 0:                  # 起始点位于图中，但往后切的图不满足尺度达不到interval
+                return point, d
+            else:                       # 其实点位于图的最左侧，但往后切的图不满足尺度达不到interval
+                return 0, max_length
 
     def slide_cutout(self, width, height, window_size, gap, mode=0):
         """
         对尺寸进行窗口口切割，并返回窗口的左上角坐标和尺寸
+        @param: width: 原图的宽度
+        @param: height: 原图的高度
+        @param: window_size: 子图的尺寸
+        @param: gap: 裁剪的重叠像素尺度
+
         return: (left, top), (width, height)
         """
         if isinstance(window_size, int):
@@ -341,6 +348,9 @@ class GapSplit:
         """
         # img = cv2.imread(image_file)
         img = cv2.imdecode(np.fromfile(image_file, dtype=np.uint8), -1)
+        if len(img.shape) == 2:     # 灰度图只有两个通道，转成三个通道
+            img = np.expand_dims(img, axis=2)
+            img = np.concatenate((img, img, img), axis=-1)
         name = get_path_basename(image_file)
 
         if img is None:
@@ -353,7 +363,7 @@ class GapSplit:
             rate = self.subsize / min(h, w)
         # 根据rate对标签和图片进行缩放
         for obj in objects:
-            obj['poly'] = list(map(lambda x : rate * x, obj['poly']))
+            obj['poly'] = list(map(lambda x: rate * x, obj['poly']))
 
         if rate != 1:
             r_img = cv2.resize(img, None, fx=rate, fy=rate, interpolation = cv2.INTER_CUBIC)
