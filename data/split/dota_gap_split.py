@@ -300,18 +300,16 @@ class GapSplit:
 
     def get_fix_windowsize(self, point, interval, max_length):
         """
-        :param point: 当前所处的位置
+        :param point: 切割起始点
         :param interval: window的尺寸
         :param max_length: 图片的尺寸
         """
-        if point + interval < max_length:
+        if point + interval <= max_length:   # 切割到下一个点，不会有超出边界
             return point, interval
-        else:
-            d = max_length - interval
-            if d >= 0:                  # 起始点位于图中，但往后切的图不满足尺度达不到interval
-                return point, d
-            else:                       # 其实点位于图的最左侧，但往后切的图不满足尺度达不到interval
-                return 0, max_length
+        elif point == 0:                     # 切割起始点点位于图最左侧或最上侧，宽度或高度不够达到interval
+            return point, max_length
+        else:                                # 起始点位于图中
+            return point, max_length - point
 
     def slide_cutout(self, width, height, window_size, gap, mode=0):
         """
@@ -364,7 +362,7 @@ class GapSplit:
         # 根据rate对标签和图片进行缩放
         for obj in objects:
             obj['poly'] = list(map(lambda x: rate * x, obj['poly']))
-
+        # 对图片进行缩放
         if rate != 1:
             r_img = cv2.resize(img, None, fx=rate, fy=rate, interpolation = cv2.INTER_CUBIC)
         else:
