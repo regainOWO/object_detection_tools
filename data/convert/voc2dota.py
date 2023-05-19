@@ -1,16 +1,12 @@
 """
 此脚本的主要内容
-1. 将voc的数据格式转换成yolo格式，支持水平框和旋转框
+1. 将voc的数据格式转换成dota格式，支持水平框
 2. 并生成三个文件train.txt, val.txt, test.txt，里面的内容为图片的绝对路径。并不会对图片文件进行移动或拷贝，并不会产生重复的图片，从而过多占用硬盘空间。
 
 使用方法，需要输入三个参数：
 --dataset-dir: 数据集的根路径
 --image-dirname: 数据集根路径下存放所有图片的文件夹名称
 --anno-dirname: 数据集根路径下存放所有xml标签的文件夹名称
---obb: 是否提取标签文件中旋转框的标签，默认不开启，即只提取水平框的标签
-
-xml的标签文件路径：必须在数据集根文件夹下的Annotations文件夹里
-输入的路径：根据参数obb决定，若obb不开启，则文件夹名称为labels，若开启则文件夹名称为labels_obb (放在数据集的根文件夹中）
 """
 
 import logging
@@ -31,47 +27,22 @@ def parse_opt():
     parser.add_argument('--image-dirname', type=str, default="JPEGImages", help='image directory name under the dataset dir')
     parser.add_argument('--anno-dirname', type=str, default="Annotations",
                         help='annotation directory name under the dataset dir')
-    parser.add_argument('--obb', action='store_true', help='convert obb label, default convert hbb label')
     opt = parser.parse_args()
     return opt
 
 
-# xyxy2xywh 并归一化
-def xyxy2xywh_normalize(size, box):
-    dw = 1. / (size[0])
-    dh = 1. / (size[1])
-    x = (box[0] + box[1]) / 2.0 - 1
-    y = (box[2] + box[3]) / 2.0 - 1
-    w = box[1] - box[0]
-    h = box[3] - box[2]
-
-    x = x * dw
-    w = w * dw
-    y = y * dh
-    h = h * dh
-    return x, y, w, h
+def xyxy2dota(box):
+    x1, y1 = box[0], box[1]
+    x2, y2 = box[2], box[1]
+    x3, y3 = box[2], box[3]
+    x4, y4 = box[0], box[3]
+    return x1, y1, x2, y2, x3, y3, x4, y4
 
 
-# 弧度转成角度 并归一化
-def xywha_normalize(size, rbox):
-    pi = 3.141592653589793
-    dw = 1. / (size[0])
-    dh = 1. / (size[1])
-    x, y, w, h, a = rbox
-
-    x = x * dw
-    w = w * dw
-    y = y * dh
-    h = h * dh
-    a = int(a * 180 / pi)   # 弧度转成角度
-    return x, y, w, h, a
-
-
-def xml2txt(xml_file, out_file, classes, isOBB=False):
+def xml2txt(xml_file, out_file):
     """
     @dataset_dir: 数据集存放annotation xml文件的目录
     @image_id: 文件名称
-    @classes: 检测类别名称
 
     return: img suffix 返回图片文件的后缀
     """
@@ -87,30 +58,22 @@ def xml2txt(xml_file, out_file, classes, isOBB=False):
     h = int(size.find('height').text)
     content_lines = []
     for obj in root.iter('object'):
-        #difficult = obj.find('difficult').text
+        difficult = obj.find('difficult').text
         cls = obj.find('name').text
         # 用于打印数据集中的总共的类别名称
         if cls not in CLASS_NAMES.keys():
             CLASS_NAMES[cls] = 1
         else:
             CLASS_NAMES[cls] += 1
-        # 若cls不在筛选的classes里，则跳过
-        if cls not in classes:
-            continue
-        cls_id = classes.index(cls)     # 类别索引
-        xmlbox = obj.find('robndbox') if isOBB else obj.find('bndbox')
-        if isOBB and xmlbox:
-            b = (float(xmlbox.find('cx').text), float(xmlbox.find('cy').text), float(
-                xmlbox.find('w').text), float(xmlbox.find('h').text), float(xmlbox.find('angle').text))
-            bbox = xywha_normalize((w, h), b)
-        elif not isOBB and xmlbox:
-            b = (float(xmlbox.find('xmin').text), float(xmlbox.find('xmax').text), float(
-                xmlbox.find('ymin').text), float(xmlbox.find('ymax').text))
-            bbox = xyxy2xywh_normalize((w, h), b)
+        xmlbox = obj.find('bndbox')
+        if xmlbox:
+            b = (float(xmlbox.find('xmin').text), float(xmlbox.find('ymin').text), float(
+                xmlbox.find('xmax').text), float(xmlbox.find('ymax').text))
+            bbox = xyxy2dota(b)
         else:
-            logging.info(f'file: {in_file} content have correct robndbox or bndbox type, you set isOBB is {isOBB}, this type will be ignore')
+            logging.info(f'file: {in_file} content object do not have bndbox, this object will be ignore')
             continue
-        content_lines.append(str(cls_id) + " " + " ".join([str(a) for a in bbox]) + '\n')
+        content_lines.append(" ".join([str(a) for a in bbox]) + " " + cls + " " + difficult + '\n')
     if len(content_lines) == 0:
         logging.warning(f'no lines to save, the file: {out_file} is empty')
     # 将内容写入文件
@@ -133,17 +96,13 @@ def get_sets(set_dir):
     return sets
 
 
-def run(dataset_dir, image_dirname, anno_dirname, isOBB=False):
+def run(dataset_dir, image_dirname, anno_dirname):
     # 读取类别信息
-    class_filepath = os.path.join(dataset_dir, 'classes.txt')
-    assert os.path.exists(class_filepath), f'please make sure the classes.txt is in path: {dataset_dir}'
-    with open(class_filepath) as f:
-        classes = [str(x).strip() for x in f.readlines()]
     # 读取文件
     image_sets_dir = os.path.join(dataset_dir, 'ImageSets', 'Main')
     sets = get_sets(image_sets_dir)
     # 创建生成label的文件夹
-    label_dirname = 'labels' if not isOBB else 'labels_obb'
+    label_dirname = 'labelTxt'
     label_dir = os.path.join(dataset_dir, label_dirname)
     os.makedirs(label_dir, exist_ok=True)
     for image_set in sets:
@@ -157,7 +116,7 @@ def run(dataset_dir, image_dirname, anno_dirname, isOBB=False):
             # 将xml文件转成txt
             xml_file = os.path.join(dataset_dir, anno_dirname, f'{image_id}.xml')
             out_file = os.path.join(label_dir, f'{image_id}.txt')
-            image_suffix = xml2txt(xml_file, out_file, classes, isOBB=isOBB)
+            image_suffix = xml2txt(xml_file, out_file)
             # 写入图片文件路径
             list_file.write(f'{images_dir}/{image_id}.{image_suffix}\n')
         list_file.close()
@@ -172,5 +131,4 @@ if __name__ == "__main__":
     opt = parse_opt()
     run(dataset_dir=opt.dataset_dir,
         image_dirname=opt.image_dirname,
-        anno_dirname=opt.anno_dirname,
-        isOBB=opt.obb)
+        anno_dirname=opt.anno_dirname)

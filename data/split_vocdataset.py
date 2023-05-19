@@ -27,7 +27,6 @@ def parse_opt():
 
 def split_train_val(label_dir, save_dirname, trainval_percent=0.9, train_percent=0.9):
     label_filenames = os.listdir(label_dir)
-    os.path.pardir
     save_dir = Path(label_dir).parent.joinpath('ImageSets', save_dirname).as_posix()
     os.makedirs(save_dir, exist_ok=True)
 
@@ -60,6 +59,7 @@ def split_train_val(label_dir, save_dirname, trainval_percent=0.9, train_percent
     ftest.close()
 
     print(f"split dataset: {opt.label_dir} Success!!!, the voc imagesets file is in {save_dir}")
+
 
 if __name__ == "__main__":
     opt = parse_opt()
