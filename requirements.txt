@@ -1,0 +1,9 @@
+# basic
+tqdm
+yaml
+Pillow
+numpy
+opencv-python
+
+# load json
+# orjson

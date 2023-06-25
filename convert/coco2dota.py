@@ -1,6 +1,17 @@
 """
 此脚本的主要内容:
-将coco的数据集格式转换成yolo格式，目前只支持转"目标检测的格式"
+将coco的数据集格式转换成dota格式，目前只支持转"目标检测的格式"
+数据集目录
+.
+├── annotations
+│   ├── instances_train2017.json
+│   └── instances_val2017.json
+├── train2017
+│   ├── ...
+│   └── **.jpg
+└── val2017
+    ├── ...
+    └── **.jpg
 
 使用方法，需要输入四个参数：
 --dataset-dir: 数据集的根路径。
@@ -47,12 +58,17 @@
 import argparse
 import os
 import os.path as osp
-import json
 import shutil
+import time
 from tqdm import tqdm
 from pathlib import Path
 
 import yaml
+try:
+    import orjson as json
+except ModuleNotFoundError:
+    print("install orjson package makes read json file more quickly! ---->  \033[91mpip install orjson\033[0m")
+    import json
 
 
 def parse_opt():
@@ -84,7 +100,12 @@ def ltwh2xywh_normalize(size, box):
 
 
 def coco2yolo(json_file: str, labels_dir: str):
-    data = json.load(open(json_file, 'r'))
+    print(f"开始读取 {osp.abspath(json_file)} ......")
+    t1 = time.time()
+    with open(json_file, 'r') as f:
+        data = json.loads(f.read())
+    t2 = time.time() - t1
+    print(f"cost: {t2}")
 
     id_map = {}
     names = {}
@@ -98,8 +119,21 @@ def coco2yolo(json_file: str, labels_dir: str):
             names[i] = category['name']
     print(f"generate classes.txt under the {data_dir} Success!!")
 
+    ann_dota_categorys = {}
+    for ann in tqdm(data['annotations'], desc=f'preprocessing the label file annotations: {json_file}'):
+        img_id = ann['image_id']
+        xmin, ymin, width, height = ann["bbox"]
+        xmax = xmin + width
+        ymax = ymin + height
+        poly = [xmin, ymin, xmin, ymax, xmax, ymax, xmax, ymin]
+        poly = ['%.1f' % x for x in poly]  # 转成字符串
+        one_line = ' '.join(poly) + ' ' + names[id_map[ann["category_id"]]] + ' ' + '0' + '\n'  # x1, y1, x2, y2, x3, y3, x4, y4, class_name, difficult
+        if img_id not in ann_dota_categorys:
+            ann_dota_categorys[img_id] = []
+        ann_dota_categorys[img_id].append(one_line)
+
     img_filenames = []
-    for img in tqdm(data['images'],total=len(data['images']), desc="convert data...."):
+    for img in tqdm(data['images'], total=len(data['images']), desc="convert data...."):
 
         # 解析 images 字段，分别取出图片文件名、图片的宽和高、图片id
         filename = img["file_name"]
@@ -110,14 +144,7 @@ def coco2yolo(json_file: str, labels_dir: str):
         # label文件名，与对应图片名只有后缀名不一样
         label_filename = osp.splitext(filename)[0] + ".txt"
         label_file = osp.join(labels_dir, label_filename)
-        content_lines = []
-        for ann in data['annotations']:
-            if ann['image_id'] == img_id:
-                box = ltwh2xywh_normalize((img_width, img_height), ann["bbox"])
-
-                # 写入txt，共5个字段
-                content_lines.append("%s %s %s %s %s\n" % (
-                    id_map[ann["category_id"]], box[0], box[1], box[2], box[3]))
+        content_lines = ann_dota_categorys.get(img_id, [])
         # 将图片的标签写入到文件中
         with open(label_file, 'w', encoding='utf-8') as f:
             f.writelines(content_lines)
@@ -225,7 +252,8 @@ def just_convertlabel(dataset_dir, o_train_img_dir, o_val_img_dir, train_json_fi
     train_img_filenames, names = coco2yolo(train_json_file, d_train_label_dir)
     print(f"convert {train_json_file} Success!! ")
     # move train images
-    train_dst_img_files = mv_images(train_img_filenames, o_train_img_dir, d_train_img_dir, tag='train')
+    # train_dst_img_files = mv_images(train_img_filenames, o_train_img_dir, d_train_img_dir, tag='train')
+    train_dst_img_files = cp_images(train_img_filenames, o_train_img_dir, d_train_img_dir, tag='train')
 
     # val
     val_dir = osp.join(dataset_dir, 'val')
@@ -238,7 +266,8 @@ def just_convertlabel(dataset_dir, o_train_img_dir, o_val_img_dir, train_json_fi
     val_img_filenames, names = coco2yolo(val_json_file, d_val_label_dir)
     print(f"convert {val_json_file} Success!! ")
     # move val images
-    val_dst_img_files = mv_images(val_img_filenames, o_val_img_dir, d_val_img_dir, tag='val')
+    # val_dst_img_files = mv_images(val_img_filenames, o_val_img_dir, d_val_img_dir, tag='val')
+    val_dst_img_files = cp_images(val_img_filenames, o_val_img_dir, d_val_img_dir, tag='val')
 
     # Save dataset.yaml
     save_yolo_data_config(dataset_dir, names)

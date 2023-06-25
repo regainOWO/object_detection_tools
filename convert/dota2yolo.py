@@ -44,6 +44,7 @@ def parse_opt():
 
 
 def get_path_basename(path):
+    """获取文件路径的文件名称，不包含拓展名"""
     p = Path(path)
     return p.name.split(p.suffix)[0]
 

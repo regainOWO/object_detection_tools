@@ -3,6 +3,21 @@
 1. 将voc的数据格式转换成dota格式，支持水平框
 2. 并生成三个文件train.txt, val.txt, test.txt，里面的内容为图片的绝对路径。并不会对图片文件进行移动或拷贝，并不会产生重复的图片，从而过多占用硬盘空间。
 
+数据集目录
+.
+├── Annotations
+│   ├── ...
+│   └── **.xml
+├── ImageSets
+│   └── Main
+│       ├──test.txt
+│       ├──train.txt
+│       ├──trainval.txt
+│       └──val.txt
+└── JPEGImages
+    ├── ...
+    └── **.jpg
+
 使用方法，需要输入三个参数：
 --dataset-dir: 数据集的根路径
 --image-dirname: 数据集根路径下存放所有图片的文件夹名称
@@ -24,8 +39,8 @@ CLASS_NAMES = {}
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-dir', type=str, required=True, help='input dataset dir')
-    parser.add_argument('--image-dirname', type=str, default="JPEGImages", help='image directory name under the dataset dir')
-    parser.add_argument('--anno-dirname', type=str, default="Annotations",
+    parser.add_argument('--image-dirname', type=str, default='JPEGImages', help='image directory name under the dataset dir')
+    parser.add_argument('--anno-dirname', type=str, default='Annotations',
                         help='annotation directory name under the dataset dir')
     opt = parser.parse_args()
     return opt
@@ -50,9 +65,9 @@ def xml2txt(xml_file, out_file):
     in_file = open(xml_file)
     tree = ET.parse(in_file)
     root = tree.getroot()
-    image_filepath = Path(root.find('path').text).as_posix()   # maybe unvaluable, just use the suffix
-    image_suffix = image_filepath.split('.')[-1].lower()
-    assert image_suffix in IMG_FORMATS, f'{image_filepath.name} is not image type, please check your dataset'
+    image_filename = Path(root.find('filename').text)   # maybe unvaluable, just use the suffix
+    image_suffix = os.path.splitext(image_filename)[-1].split('.')[-1]
+    assert image_suffix in IMG_FORMATS, f'{image_filename} is not image type, please check your dataset'
     size = root.find('size')
     w = int(size.find('width').text)
     h = int(size.find('height').text)

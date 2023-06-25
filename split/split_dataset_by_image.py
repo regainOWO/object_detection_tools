@@ -1,10 +1,10 @@
 """
 本脚本的主要内容
-根据label文件夹下的文件名称，进行随机采样，生成train val test三个列表。将其中的
-内容分别存放到ImageSets/Main文件夹下train.txt、val.txt、test.txt和trainval.txt文件中。
+根据label文件夹下的文件名称，进行随机采样，生成train val test三个txt文件，里面存放都是对图片的绝对路径。
 格式类似与数据集PASCAL VOC的格式。
 PASCAL VOC的格式的参考链接: https://blog.csdn.net/qq_37541097/article/details/115787033
 
+image-dir: 图片文件夹的路径
 trainval-percent: 训练集和验证集占总体的百分比
 train-percent: 训练集占 训练集加验证集 总体的百分比
 """
@@ -17,7 +17,7 @@ import argparse
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image-dir', type=str, required=True, help='input label label path')
+    parser.add_argument('--image-dir', type=str, required=True, help='image directory path')
     parser.add_argument('--trainval-percent', type=float, default=0.9, help='dataset train and val label file nums percent in total')
     parser.add_argument('--train-percent', type=float, default=0.9, help='dataset train label file nums percent in train and val')
     opt = parser.parse_args()

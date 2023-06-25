@@ -1,15 +1,28 @@
-# 数据集转化脚本
-每个脚本都可单独运行
+# tools工具脚本
+* `analyze`: 数据集分析脚本
+  * `statistics_classnames.py`: 统计数据集的类别名称，支持coco、pascalvoc、yolo、dota格式
 * `convert`: 数据集格式转化
+  * `csv2dota.py`: csv标签文件转dota格式
+  * `coco2dota.py`: coco格式转dota格式 
   * `coco2yolo.py`: coco格式转yolo格式
-  * `dota2yolo.py`: dota格式转yolo格式，选取四边形的最小外接正矩形作为box框
+  * `dota2yolo.py`: dota格式转yolo格式，**选取四边形的最小外接正矩形作为box框**
+  * `voc2dota.py`: voc格式转dota格式
   * `voc2yolo.py`: voc格式转yolo格式
+  * `yolo2dota.py`: yolo格式转dota格式
+* `plot`: 画框，将标签文件的内容画到原图上
+  * `draw_box_label.py`: 画框，可支持yolo和dota格式
 * `split`: 数据集裁切
-  * `dota_gap_split.py`: dota格式数据集裁切
+  * `split_dataset_by_image.py`: 根据图片的路径随机采样拆分数据集，在数据集根目录下生成train.txt、val.txt、trainval.txt和test.txt,其中的每行内容是图片的绝对路径
+  * `split_vocdataset.py`: 根据voc标签文件的名称随机采样拆分数据集，在数据集根目录的`ImageSets/Main`文件夹下生成train.txt、val.txt、trainval.txt和test.txt,其中的每行内容是标签文件名称（不带拓展名）
+  * cut
+    * `dota_gap_split.py`: dota格式数据集裁剪
+* `scripts`: 工具一起使用的脚本
+  * `plot_csv_dota_label.sh`: 将dota的csv文件转成dota的标签格式，并将标签画到原图上，用于测试集的展示
 
 
 # 裁剪数据
 ## DOTA数据集裁剪
+`split/cut/dota_gap_split.py`
 裁剪的逻辑：先根据缩放因子对图片进行缩放，然后进行裁剪。
 参数描述
 * `dataset-dir`: 数据集的根目录，必填项
@@ -32,12 +45,12 @@
 </div>
 
 ```shell
-python data/split/dota_gap_split.py --dataset-dir path/to/dataset \
-                                     --gap 200 \
-                                     --subsize 1024 \
-                                     --rate 1.0 \
-                                     --output-path path/to/output \
-                                     --nosave-empty
+python split/cut/dota_gap_split.py --dataset-dir path/to/dataset \
+                                   --gap 200 \
+                                   --subsize 1024 \
+                                   --rate 1.0 \
+                                   --output-path path/to/output \
+                                   --nosave-empty
 ```
 
 # 数据集标签转化
@@ -54,11 +67,11 @@ python data/split/dota_gap_split.py --dataset-dir path/to/dataset \
 
 coco2017数据集转yolo
 ```shell
-python data/convert/coco2yolo.py --dataset-dir path/to/dataset \
-                                  --trainimg-dirname train2017 \
-                                  --valimg-dirname val2017 \
-                                  --trainjson-filename instances_train2017.json \
-                                  --valjson-filename instances_val2017.json
+python convert/coco2yolo.py --dataset-dir path/to/dataset \
+                            --trainimg-dirname train2017 \
+                            --valimg-dirname val2017 \
+                            --trainjson-filename instances_train2017.json \
+                            --valjson-filename instances_val2017.json
 ```
 ## dota格式转yolo
 <div align='center'>
@@ -75,10 +88,10 @@ python data/convert/coco2yolo.py --dataset-dir path/to/dataset \
 
 dota数据集转yolo
 ```shell
-python data/convert/dota2yolo.py --dataset-dir path/to/dataset \
-                                  --image-dirname images \
-                                  --label-dirname labelTxt \
-                                  --difficult-thres 1
+python convert/dota2yolo.py --dataset-dir path/to/dataset \
+                            --image-dirname images \
+                            --label-dirname labelTxt \
+                            --difficult-thres 1
 ```
 
 ## voc格式转yolo
@@ -91,5 +104,5 @@ python data/convert/dota2yolo.py --dataset-dir path/to/dataset \
 
 voc数据集转yolo
 ```shell
-python data/convert/voc2yolo.py --dataset-dir path/to/dataset
+python convert/voc2yolo.py --dataset-dir path/to/dataset
 ```
