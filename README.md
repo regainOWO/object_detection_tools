@@ -10,6 +10,7 @@
   * `voc2yolo.py`: voc格式转yolo格式
   * `yolo2dota.py`: yolo格式转dota格式
   * `fair1m2dota.py`: fair1m格式转dota格式
+  * `dota2rolabellmg.py`: dota格式转rolabellmg的旋转框格式
 * `plot`: 画框，将标签文件的内容画到原图上
   * `draw_box_label.py`: 画框，可支持yolo和dota格式
 * `split`: 数据集裁切
