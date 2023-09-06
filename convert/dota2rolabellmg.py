@@ -2,6 +2,11 @@
 此脚本的主要内容:
 将dota格式转成rolabellmg软件原始生成的标签格式
 可以方便对标签进行再次的调整，次脚本可以配合模型预标注一起使用
+
+所需的参数如下
+--label-dir dota标签的文件夹路径
+--output-dir 输出的路径, 默认值为标签文件夹的同级的Annotations文件夹
+
 """
 
 import argparse
@@ -43,31 +48,27 @@ def get_file_basename(file_path: str, ext=None):
 def parse_dota(txt_file):
     with open(txt_file, mode='r', encoding='utf-8') as f:
         labels = [str(x).strip().split(' ') for x in f.readlines()]
-    polys, class_names, difficults = [], [], []
-    for i, label in enumerate(labels):
+    result = []
+    for label in labels:
         class_name = label[-2]
         difficult = int(label[-1])
-        difficults.append(difficult)
-        class_names.append(class_name)
-        polys.append(list(map(float, label[:-2])))
-    return polys, class_names, difficults
+        data = {
+            "poly": list(map(float, label[:-2])),
+            "name": class_name,
+            "difficult": difficult
+        }
+        result.append(data)
+    return result
 
 
-def poly2xywha(polys: list, class_names, difficults):
+def poly2xywha(labels):
     """
     Args:
-        polys (list): 矩形的四个顶点坐标，每一行有8个值
+        labels (list): 标签
     """
     results = []
-    for poly, class_name, difficult in zip(polys, class_names, difficults):
-        # c_x = (poly[0] + poly[4]) / 2
-        # c_y = (poly[1] + poly[5]) / 2
-        # w = math.sqrt((poly[0] - poly[2]) ** 2 +
-        #     (poly[1] - poly[3]) ** 2)
-
-        # h = math.sqrt((poly[4] - poly[2]) ** 2 +
-        #     (poly[5] - poly[3]) ** 2)
-        (cx, cy), (w, h), angle = cv2.minAreaRect(np.array(poly, dtype=int).reshape(4, 2))
+    for label in labels:
+        (cx, cy), (w, h), angle = cv2.minAreaRect(np.array(label['poly'], dtype=int).reshape(4, 2))
         angle = angle * math.pi / 180.0
         result = {
             'cx': round(cx, 4),
@@ -75,8 +76,8 @@ def poly2xywha(polys: list, class_names, difficults):
             'w': round(w, 4),
             'h': round(h, 4),
             'angle': round(angle, 4),
-            'name': class_name,
-            'difficult': difficult
+            'name': label['name'],
+            'difficult': label['difficult']
         }
         results.append(result)
     return results
@@ -166,8 +167,8 @@ def run(label_dir, output_dir):
         output_dir = osp.join(osp.dirname(osp.abspath(label_dir)), "Annotations")
     os.makedirs(output_dir, exist_ok=True)
     for label_file in tqdm(label_files, total=len(label_files)):
-        polys, class_names, difficults = parse_dota(label_file)
-        rboxes = poly2xywha(polys, class_names, difficults)
+        labels = parse_dota(label_file)
+        rboxes = poly2xywha(labels)
         filename = osp.splitext(osp.basename(label_file))[0]
         save(rboxes, filename, output_dir)
 
