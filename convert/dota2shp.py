@@ -121,7 +121,7 @@ def dota2shp(image_file, label_data, shp_file, class_names_list: list):
     proj = osr.SpatialReference()
     if geo_transform == (0, 1, 0, 0, 0, 1):  # 这是默认投影，会导致上下翻转
         proj.ImportFromEPSG(4326)
-        geo_transform = (0, 1, 0, image_height, 0, -1)
+        geo_transform = (0, 1, 0, 0, 0, -1)
     else:
         # 如果图像有投影，那就从图像中获取投影
         proj.ImportFromWkt(image.GetProjection())
