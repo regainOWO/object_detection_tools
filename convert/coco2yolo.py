@@ -9,6 +9,8 @@
 --trainjson-filename: 数据集根路径下annotations文件夹下，训练集标签json文件的名称，默认值为instances_train2017.json
 --valjson-filename: 数据集根路径下annotations文件夹下，训练集标签json文件的名称，默认值为instances_val2017.json
 --output-dir: 生成新数据集的路径，默认值为None，指定了值，会对图片文件进行复制，不推荐。
+--classes: 根据类别信息对标签进行过滤，只保留类别信息的标签，默认值为None，即不经过滤
+--save_empty: 是否保留空标签的数据，默认保存
 
 转化的结果分成两种
 1. --output-dir 未指定值 （前提：训练集图片和验证集图片文件名称不能同名）
@@ -68,6 +70,8 @@ def parse_opt():
     parser.add_argument('--trainjson-filename', type=str, default="instances_train2017.json", help='train label .json filename under the annotations directory, default is instances_train2017.json')
     parser.add_argument('--valjson-filename', type=str, default="instances_val2017.json", help='val label .json filename under the annotations directory, default is instances_val2017.json')
     parser.add_argument('--output-dir', type=str, default=None, help='new dataset dir, it will copy image, not recommend !!')
+    parser.add_argument('--classes', type=str, nargs='+', default=None, help='The reserved class name to filter dataset, default nothing to do')
+    parser.add_argument('--save_empty', action='store_true', help='whether save the empty data')
     opt = parser.parse_args()
     return opt
 
@@ -88,7 +92,7 @@ def ltwh2xywh_normalize(size, box):
     return x, y, w, h
 
 
-def coco2yolo(json_file: str, labels_dir: str):
+def coco2yolo(json_file: str, labels_dir: str, classes: list = None, save_empty=False):
     print(f"开始读取 {osp.abspath(json_file)} ......")
     t1 = time.time()
     with open(json_file, 'r') as f:
@@ -101,11 +105,13 @@ def coco2yolo(json_file: str, labels_dir: str):
 
     # 解析目标类别，也就是 categories 字段，并将类别写入文件 classes.txt 中，存放在label_dir的同级目录中
     data_dir = Path(labels_dir).parent.as_posix()
+    for i, category in enumerate(data['categories']):
+        id_map[category['id']] = i
+        names[i] = category['name']
+    if classes is None:
+        classes = list(names.values())
     with open(osp.join(data_dir, 'classes.txt'), 'w', encoding='utf-8') as f:
-        for i, category in enumerate(data['categories']):
-            f.write(f"{category['name']}\n")
-            id_map[category['id']] = i
-            names[i] = category['name']
+        f.writelines([x + '\n' for x in classes])
     print(f"generate classes.txt under the {data_dir} Success!!")
 
     ann_yolo_categorys = {}
@@ -130,13 +136,16 @@ def coco2yolo(json_file: str, labels_dir: str):
         anns = ann_yolo_categorys.get(img_id, [])
         content_lines = []
         for ann in anns:
-            box = ltwh2xywh_normalize((img_width, img_height), ann["bbox"])
-            one_line = "%s %s %s %s %s\n" % (id_map[ann["category_id"]], box[0], box[1], box[2], box[3])
-            content_lines.append(one_line)
-        # 将图片的标签写入到文件中
-        with open(label_file, 'w', encoding='utf-8') as f:
-            f.writelines(content_lines)
-        img_filenames.append(filename)
+            box = ltwh2xywh_normalize((img_width, img_height), ann["bbox"]) # 在线的ogc服务作为影像的来源，然后
+            name = names[id_map[ann["category_id"]]]
+            if name in classes:
+                one_line = "%s %s %s %s %s\n" % (classes.index(name), box[0], box[1], box[2], box[3])
+                content_lines.append(one_line)
+        if len(content_lines) or save_empty:
+            # 将图片的标签写入到文件中
+            with open(label_file, 'w', encoding='utf-8') as f:
+                f.writelines(content_lines)
+            img_filenames.append(filename)
     
     return img_filenames, names
 
@@ -182,7 +191,7 @@ def mv_images(img_filenames, o_dir, d_dir, tag='train'):
     return dst_img_files
 
 
-def new_dataset(output_dir, o_train_img_dir, o_val_img_dir, train_json_file, val_json_file):
+def new_dataset(output_dir, o_train_img_dir, o_val_img_dir, train_json_file, val_json_file, classes, save_empty):
     # 删除old，创建输出路径的文件夹
     if osp.exists(output_dir):
         shutil.rmtree(output_dir)
@@ -198,7 +207,7 @@ def new_dataset(output_dir, o_train_img_dir, o_val_img_dir, train_json_file, val
     os.makedirs(d_train_label_dir)
     # convert train label
     print(f"start to convert train annotation file {train_json_file}.....")
-    train_img_filenames, names = coco2yolo(train_json_file, d_train_label_dir)
+    train_img_filenames, names = coco2yolo(train_json_file, d_train_label_dir, classes, save_empty)
     print(f"convert {train_json_file} Success!! ")
     # copy train image
     train_dst_img_files = cp_images(train_img_filenames, o_train_img_dir, d_train_img_dir, tag='train')
@@ -211,7 +220,7 @@ def new_dataset(output_dir, o_train_img_dir, o_val_img_dir, train_json_file, val
     os.makedirs(d_val_label_dir)
     # convert val label
     print(f"start to convert val annotation file {val_json_file}")
-    val_img_filenames, names = coco2yolo(val_json_file, d_val_label_dir)
+    val_img_filenames, names = coco2yolo(val_json_file, d_val_label_dir, classes, save_empty)
     print(f"convert {val_json_file} Success!! ")
     # copy val image
     val_dst_img_files = cp_images(val_img_filenames, o_val_img_dir, d_val_img_dir, tag='val')
@@ -226,7 +235,7 @@ def new_dataset(output_dir, o_train_img_dir, o_val_img_dir, train_json_file, val
     save_txt(osp.join(output_dir, 'val.txt'), val_dst_img_files)
 
 
-def just_convertlabel(dataset_dir, o_train_img_dir, o_val_img_dir, train_json_file, val_json_file):
+def just_convertlabel(dataset_dir, o_train_img_dir, o_val_img_dir, train_json_file, val_json_file, classes, save_empty):
     # 转成绝对路径
     dataset_dir = osp.abspath(dataset_dir)
     # train
@@ -237,7 +246,7 @@ def just_convertlabel(dataset_dir, o_train_img_dir, o_val_img_dir, train_json_fi
     os.makedirs(d_train_label_dir, exist_ok=True)
     # convert train label
     print(f"start to convert train annotation file {train_json_file}.....")
-    train_img_filenames, names = coco2yolo(train_json_file, d_train_label_dir)
+    train_img_filenames, names = coco2yolo(train_json_file, d_train_label_dir, classes, save_empty)
     print(f"convert {train_json_file} Success!! ")
     # move train images
     train_dst_img_files = mv_images(train_img_filenames, o_train_img_dir, d_train_img_dir, tag='train')
@@ -250,7 +259,7 @@ def just_convertlabel(dataset_dir, o_train_img_dir, o_val_img_dir, train_json_fi
     os.makedirs(d_val_label_dir, exist_ok=True)
     # convert train label
     print(f"start to convert val annotation file {val_json_file}")
-    val_img_filenames, names = coco2yolo(val_json_file, d_val_label_dir)
+    val_img_filenames, names = coco2yolo(val_json_file, d_val_label_dir, classes, save_empty)
     print(f"convert {val_json_file} Success!! ")
     # move val images
     val_dst_img_files = mv_images(val_img_filenames, o_val_img_dir, d_val_img_dir, tag='val')
@@ -265,7 +274,7 @@ def just_convertlabel(dataset_dir, o_train_img_dir, o_val_img_dir, train_json_fi
     save_txt(osp.join(dataset_dir, 'val.txt'), val_dst_img_files)
 
 
-def run(dataset_dir, train_img_dirname, val_img_dirname, train_json_filename, val_json_filename, output_dir=None):
+def run(dataset_dir, train_img_dirname, val_img_dirname, train_json_filename, val_json_filename, classes, output_dir=None, save_empty=False):
     train_json_file = osp.join(dataset_dir, "annotations", train_json_filename)
     val_json_file = osp.join(dataset_dir, "annotations", val_json_filename)
     train_img_dir = osp.join(dataset_dir, train_img_dirname)
@@ -275,9 +284,9 @@ def run(dataset_dir, train_img_dirname, val_img_dirname, train_json_filename, va
     assert osp.exists(train_img_dir), f"{train_img_dir} not exists, please make sure your trainimg_dirname is correct"
     assert osp.exists(val_img_dir), f"{val_img_dir} not exists, please make sure your valimg_dirname is correct"
     if output_dir is None:
-        just_convertlabel(dataset_dir, train_img_dir, val_img_dir, train_json_file, val_json_file)
+        just_convertlabel(dataset_dir, train_img_dir, val_img_dir, train_json_file, val_json_file, classes, save_empty)
     else:
-        new_dataset(output_dir, train_img_dir, val_img_dir, train_json_file, val_json_file)
+        new_dataset(output_dir, train_img_dir, val_img_dir, train_json_file, val_json_file, classes, save_empty)
 
 
 if __name__ == '__main__':
@@ -287,4 +296,6 @@ if __name__ == '__main__':
         val_img_dirname=opt.valimg_dirname,
         train_json_filename=opt.trainjson_filename,
         val_json_filename=opt.valjson_filename,
-        output_dir=opt.output_dir)
+        classes=opt.classes,
+        output_dir=opt.output_dir,
+        save_empty=opt.save_empty)
