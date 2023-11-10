@@ -10,8 +10,10 @@
   * `voc2yolo.py`: voc格式转yolo格式
   * `yolo2dota.py`: yolo格式转dota格式
   * `fair1m2dota.py`: fair1m格式转dota格式
-  * `dota2rolabellmg.py`: dota格式转rolabellmg的旋转框格式
+  * `dota2rolabellmg.py`: dota格式转[rolabellmg](https://github.com/cgvict/roLabelImg)的旋转框格式
   * `dota2shp.py`: dota格式转.shp矢量文件格式
+  * `sodaa2dota.py`: SODA-A数据集格式转dota格式
+  * `nwpu2dota.py`: WPU VHR-10的数据格式转dota格式
 * `plot`: 画框，将标签文件的内容画到原图上
   * `draw_box_label.py`: 画框，可支持yolo和dota格式
 * `split`: 数据集裁切
