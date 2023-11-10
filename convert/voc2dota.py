@@ -1,47 +1,48 @@
 """
 此脚本的主要内容
 1. 将voc的数据格式转换成dota格式，支持水平框
-2. 并生成三个文件train.txt, val.txt, test.txt，里面的内容为图片的绝对路径。并不会对图片文件进行移动或拷贝，并不会产生重复的图片，从而过多占用硬盘空间。
-
-数据集目录
-.
-├── Annotations
-│   ├── ...
-│   └── **.xml
-├── ImageSets
-│   └── Main
-│       ├──test.txt
-│       ├──train.txt
-│       ├──trainval.txt
-│       └──val.txt
-└── JPEGImages
-    ├── ...
-    └── **.jpg
+2. voc的标签名称中间如果有空格，则名称中间的空格字符则将替换成'-'符号；如 tennis racket -> tennis-racket
 
 使用方法，需要输入三个参数：
---dataset-dir: 数据集的根路径
---image-dirname: 数据集根路径下存放所有图片的文件夹名称
---anno-dirname: 数据集根路径下存放所有xml标签的文件夹名称
+--ann-dir: pascal voc的xml标签文件存放的路径
+--output-dir: dota格式输出的路径
+--noempty: 是否保存空标签文件，默认是保存的
 """
 
+import argparse
+import glob
 import logging
 import xml.etree.ElementTree as ET
 import os
-from pathlib import Path
+import os.path as osp
 
 from tqdm import tqdm
-import argparse
 
-IMG_FORMATS = 'bmp', 'dng', 'jpeg', 'jpg', 'mpo', 'png', 'tif', 'tiff', 'webp', 'pfm'  # include image suffixes
-CLASS_NAMES = {}
+
+def get_logger(log_name):
+    logger = logging.getLogger(log_name)
+    if logger.handlers:
+        return logger
+    ch = logging.StreamHandler()
+    ch_format = logging.Formatter('[%(levelname)s %(asctime)s] %(message)s')
+    ch.setFormatter(ch_format)
+    logger.addHandler(ch)
+    logger.setLevel(logging.INFO)
+    return logger
+
+
+# logger
+LOGGER = get_logger('voc2dota')
 
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset-dir', type=str, required=True, help='input dataset dir')
-    parser.add_argument('--image-dirname', type=str, default='JPEGImages', help='image directory name under the dataset dir')
-    parser.add_argument('--anno-dirname', type=str, default='Annotations',
-                        help='annotation directory name under the dataset dir')
+    parser.add_argument('--ann-dir', type=str, required=True,
+                        help='input pascal voc annotations dir')
+    parser.add_argument('--output-dir', type=str, default=None,
+                        help='output dota annotation dir, default is beside the ann-dir directory called labels')
+    parser.add_argument('--noempty', action='store_true',
+                        help='if or not save empty label, default is not save')
     opt = parser.parse_args()
     return opt
 
@@ -54,96 +55,81 @@ def xyxy2dota(box):
     return x1, y1, x2, y2, x3, y3, x4, y4
 
 
-def xml2txt(xml_file, out_file):
+def xml2txt(xml_file, out_file, class_names, save_empty):
     """
-    @dataset_dir: 数据集存放annotation xml文件的目录
-    @image_id: 文件名称
-
-    return: img suffix 返回图片文件的后缀
+    将pascal voc的.xml标签文件转成 dota标签的.txt标签文件
+    Args:
+        xml_file (str): pascal voc标签文件的路径
+        out_file (str): dota标签文件的输出路径
+        class_names (list): 标签类别名称
+        save_empty (bool): 是否保存空标签
     """
-    global CLASS_NAMES
     in_file = open(xml_file)
     tree = ET.parse(in_file)
     root = tree.getroot()
-    image_filename = Path(root.find('filename').text)   # maybe unvaluable, just use the suffix
-    image_suffix = os.path.splitext(image_filename)[-1].split('.')[-1]
-    assert image_suffix in IMG_FORMATS, f'{image_filename} is not image type, please check your dataset'
     size = root.find('size')
     w = int(size.find('width').text)
     h = int(size.find('height').text)
     content_lines = []
     for obj in root.iter('object'):
         difficult = obj.find('difficult').text
-        cls = obj.find('name').text
+        name = obj.find('name').text
+        name.replace(' ', '-')  # 将类别名称的空格间隙替换成 '-'
         # 用于打印数据集中的总共的类别名称
-        if cls not in CLASS_NAMES.keys():
-            CLASS_NAMES[cls] = 1
-        else:
-            CLASS_NAMES[cls] += 1
+        if name not in class_names:
+            class_names.append(name)
         xmlbox = obj.find('bndbox')
         if xmlbox:
             b = (float(xmlbox.find('xmin').text), float(xmlbox.find('ymin').text), float(
                 xmlbox.find('xmax').text), float(xmlbox.find('ymax').text))
             bbox = xyxy2dota(b)
         else:
-            logging.info(f'file: {in_file} content object do not have bndbox, this object will be ignore')
+            LOGGER.info(f'file: {in_file} content object do not have bndbox, this object will be ignore')
             continue
-        content_lines.append(" ".join([str(a) for a in bbox]) + " " + cls + " " + difficult + '\n')
+        content_lines.append(" ".join([str(a) for a in bbox]) + " " + name + " " + difficult + '\n')
     if len(content_lines) == 0:
-        logging.warning(f'no lines to save, the file: {out_file} is empty')
-    # 将内容写入文件
-    with open(out_file, 'w', encoding='utf-8') as f:
-        f.writelines(content_lines)
-    return image_suffix
+        LOGGER.warning(f'no lines to save, the file: {out_file} is empty')
+    if len(content_lines) > 0 or save_empty:
+        # 将内容写入文件
+        with open(out_file, 'w', encoding='utf-8') as f:
+            f.writelines(content_lines)
 
 
-def get_sets(set_dir):
-    """
-    去除不存在txt文件的 set
-    """
-    sets = ['train', 'val', 'test']
-    filenames = os.listdir(set_dir)
-    for i, set in enumerate(sets):
-        set_file = set + '.txt'
-        if set_file not in filenames:
-            sets.pop(i)
-    assert len(sets) > 2 or 'train' in sets, f'please make sure your {set_dir} path have train.txt, val.txt(Optional), test.txt(Optional), you can use split_data.py script to split data'
-    return sets
+def save_classes(classes_file, class_names):
+    """保存classes.txt文件"""
+    with open(classes_file, 'w', encoding='utf-8') as f:
+        f.writelines("\n".join(class_names) + '\n')
 
 
-def run(dataset_dir, image_dirname, anno_dirname):
-    # 读取类别信息
-    # 读取文件
-    image_sets_dir = os.path.join(dataset_dir, 'ImageSets', 'Main')
-    sets = get_sets(image_sets_dir)
+def run(ann_dir, output_dir, save_empty=True):
+    # 数据集所包含的标签类别名称
+    class_names = []
+    if output_dir is None:
+        output_dir = osp.join(osp.dirname(ann_dir), 'labelTxt')
     # 创建生成label的文件夹
-    label_dirname = 'labelTxt'
-    label_dir = os.path.join(dataset_dir, label_dirname)
-    os.makedirs(label_dir, exist_ok=True)
-    for image_set in sets:
-        # 读取图片文件名称
-        with open(f'{image_sets_dir}/{image_set}.txt') as f:
-            image_ids = [str(x).strip() for x in f.readlines()]
-        # 生成新的包含图片路径的文件，存放到数据集的根目录
-        list_file = open(f'{dataset_dir}/{image_set}.txt', 'w', encoding='utf-8')
-        images_dir = f'{dataset_dir}/{image_dirname}'
-        for image_id in tqdm(image_ids, desc=f'convert {image_set} label'):
-            # 将xml文件转成txt
-            xml_file = os.path.join(dataset_dir, anno_dirname, f'{image_id}.xml')
-            out_file = os.path.join(label_dir, f'{image_id}.txt')
-            image_suffix = xml2txt(xml_file, out_file)
-            # 写入图片文件路径
-            list_file.write(f'{images_dir}/{image_id}.{image_suffix}\n')
-        list_file.close()
+    os.makedirs(output_dir, exist_ok=True)
+    # 后去所有的标签源文件
+    ann_files = glob.glob(ann_dir + '/*.xml')
+    assert len(ann_files) > 0, f"path: {ann_dir} dose not have any .xml file"
+    # 标签文件转化
+    pbar = tqdm(ann_files, total=len(ann_files))
+    for ann_file in pbar:
+        pbar.set_description(f'process {ann_file}')
+        output_filename = osp.splitext(osp.basename(ann_file))[0] + '.txt'
+        output_file = osp.join(output_dir, output_filename)
+        xml2txt(ann_file, output_file, class_names, save_empty)
+    # save classes.txt
+    classes_file = osp.join(osp.dirname(output_dir), 'classes.txt')
+    class_names.sort()
+    save_classes(classes_file, class_names)
     # print msg
-    print(f"dataset xml file total class name count: {CLASS_NAMES}")
-    print(f"convert dataset: {Path(dataset_dir).name} voc label to yolo Success!!!")
-    print(f"in folder: {dataset_dir}. generate train.txt、val.txt and test.txt Success!!!")
-    print(f"convert label is in folder {label_dirname}")
+    LOGGER.info(f"dataset total class_names: {class_names}")
+    LOGGER.info(f"classes.txt saved in: {classes_file}")
+    LOGGER.info(f"dota type label saved in: {output_dir}")
 
 
 if __name__ == "__main__":
     opt = parse_opt()
-    run(dataset_dir=opt.dataset_dir,
-        image_dirname=opt.image_dirname,
-        anno_dirname=opt.anno_dirname)
+    run(ann_dir=opt.ann_dir,
+        output_dir=opt.output_dir,
+        save_empty=not opt.noempty)
