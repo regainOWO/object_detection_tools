@@ -4,7 +4,7 @@
 
 使用方法，需要输入三个参数：
 --ann-dir: pascal voc的xml标签文件存放的路径
---output-dir: yolo格式输出的路径
+--output-dir: yolo格式输出的路径，默认路径为pascal voc标签文件夹的同级 labels目录
 --noempty: 是否保存空标签文件，默认是保存的
 
 """

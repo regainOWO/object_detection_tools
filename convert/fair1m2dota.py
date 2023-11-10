@@ -5,7 +5,7 @@
 
 使用方法，需要输入三个参数：
 --ann-dir: pascal voc的xml标签文件存放的路径
---output-dir: dota格式输出的路径
+--output-dir: dota格式输出的路径，默认路径为pascal voc标签文件夹的同级 labelTxt目录
 --noempty: 是否保存空标签文件，默认是保存的
 """
 import argparse
@@ -39,7 +39,7 @@ def parse_opt():
     parser.add_argument('--ann-dir', type=str, required=True,
                         help='input pascal voc annotations dir')
     parser.add_argument('--output-dir', type=str, default=None,
-                        help='output yolo annotation dir, default is beside the ann-dir directory called labels')
+                        help='output yolo annotation dir, default is beside the ann-dir directory called labelTxt')
     parser.add_argument('--noempty', action='store_true',
                         help='if or not save empty label, default is not save')
     opt = parser.parse_args()
