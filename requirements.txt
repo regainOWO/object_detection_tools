@@ -3,7 +3,7 @@ tqdm
 yaml
 Pillow
 numpy
-opencv-python
+opencv-python >= 4.5.1
 
 matplotlib
 
