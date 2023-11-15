@@ -2,7 +2,7 @@
 * `analyze`: 数据集分析脚本
   * `statistics_classnames.py`: 统计数据集的类别名称，支持coco、pascalvoc、yolo、dota格式
 * `convert`: 数据集格式转化
-  * `csv2dota.py`: csv标签文件转dota格式
+  * `coco2voc.py`: coco格式转pascal voc格式
   * `coco2dota.py`: coco格式转dota格式 
   * `coco2yolo.py`: coco格式转yolo格式
   * `dota2yolo.py`: dota格式转yolo格式，**选取四边形的最小外接正矩形作为box框**
@@ -10,10 +10,14 @@
   * `voc2yolo.py`: voc格式转yolo格式
   * `yolo2dota.py`: yolo格式转dota格式
   * `fair1m2dota.py`: fair1m格式转dota格式
+  * `sodaa2dota.py`: SODA-A数据集格式转dota格式
   * `dota2rolabellmg.py`: dota格式转[rolabellmg](https://github.com/cgvict/roLabelImg)的旋转框格式
+  * `csv2dota.py`: csv标签文件转dota格式
   * `dota2shp.py`: dota格式转.shp矢量文件格式
   * `sodaa2dota.py`: SODA-A数据集格式转dota格式
   * `nwpu2dota.py`: WPU VHR-10的数据格式转dota格式
+  * `hrcs20162dota.py`: HRCS2016数据集格式转dota格式(旋转框)
+  * `hrcs20162voc.py`: HRCS2016数据集格式转pascal voc格式(水平框)
 * `plot`: 画框，将标签文件的内容画到原图上
   * `draw_box_label.py`: 画框，可支持yolo和dota格式
 * `split`: 数据集裁切
