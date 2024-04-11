@@ -50,8 +50,8 @@ def parse_opt():
 def xyxy2xywh_normalize(size, box):
     dw = 1. / (size[0])
     dh = 1. / (size[1])
-    x = (box[0] + box[1]) / 2.0 - 1
-    y = (box[2] + box[3]) / 2.0 - 1
+    x = (box[0] + box[1]) / 2.0
+    y = (box[2] + box[3]) / 2.0
     w = box[1] - box[0]
     h = box[3] - box[2]
 
@@ -71,13 +71,14 @@ def xml2txt(xml_file, out_file, class_names, save_empty):
         class_names (list): 标签类别名称
         save_empty (bool): 是否保存空标签
     """
-    in_file = open(xml_file)
+    in_file = open(xml_file, encoding='utf-8')
     tree = ET.parse(in_file)
     root = tree.getroot()
     size = root.find('size')
     w = int(size.find('width').text)
     h = int(size.find('height').text)
     content_lines = []
+    negative = False
     for obj in root.iter('object'):
         #difficult = obj.find('difficult').text
         name = obj.find('name').text
@@ -93,9 +94,14 @@ def xml2txt(xml_file, out_file, class_names, save_empty):
         else:
             LOGGER.info(f'file: {in_file} content have correct bndbox type, this type will be ignore')
             continue
+        valid_index = [1 for x in bbox if 0 <= x <= 1]
+        if len(valid_index) != 4:
+            negative = True
         content_lines.append(str(cls_id) + " " + " ".join([str(a) for a in bbox]) + '\n')
     if len(content_lines) == 0:
         LOGGER.warning(f'the file: {xml_file} label is empty')
+    if negative:
+        LOGGER.warning(f'the file: {xml_file} label is negative')
     if len(content_lines) > 0 or save_empty:
         # 将内容写入文件
         with open(out_file, 'w', encoding='utf-8') as f:
@@ -110,7 +116,8 @@ def save_classes(classes_file, class_names):
 
 def run(ann_dir, output_dir, save_empty=True):
     # 数据集所包含的标签类别名称
-    class_names = []
+    # class_names = []
+    class_names = ['traffic_sign', 'epole', 'trafficpanel', 'monitor', 'bridge', 'milestone']
     if output_dir is None:
         output_dir = osp.join(osp.dirname(ann_dir), 'labels')
     # 创建生成label的文件夹
